@@ -1,0 +1,2580 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TWITCH BOT PANEL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #1a1a24;
+    --border: #2a2a3a;
+    --accent: #7c3aed;
+    --accent2: #a855f7;
+    --accent3: #c084fc;
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #eab308;
+    --cyan: #06b6d4;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #475569;
+    --glow: 0 0 20px rgba(124, 58, 237, 0.4);
+    --glow2: 0 0 40px rgba(124, 58, 237, 0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.4;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(124,58,237,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,58,237,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .layout {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 260px 1fr 320px;
+    grid-template-rows: 60px 1fr;
+    min-height: 100vh;
+  }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; }
+    .sidebar { display: none; grid-column: 1; grid-row: 2; border-right: none; border-bottom: 1px solid var(--border); max-height: 60vh; overflow-y: auto; }
+    .sidebar.open { display: flex; }
+    .main { grid-column: 1; grid-row: 3; padding: 12px; }
+    .chat-panel { display: none; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .form-row { grid-template-columns: 1fr; }
+    .features-grid { grid-template-columns: 1fr; }
+    .mobile-menu-btn { display: flex !important; }
+    .mobile-chat-btn { display: flex !important; }
+    .status-text { display: none; }
+    .stream-controls { gap: 4px; }
+    .stream-controls .btn { padding: 5px 8px; font-size: 9px; }
+    header { padding: 0 12px; gap: 8px; }
+    .header-status { gap: 8px; }
+    .logo { font-size: 12px; }
+    .stat-value { font-size: 18px; }
+    .death-number { font-size: 48px; }
+    .modal { width: 96%; max-height: 90vh; }
+    .cmd-row { grid-template-columns: 140px 1fr auto; gap: 8px; }
+  }
+
+  @media (max-width: 480px) {
+    .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stream-controls .btn-sm { padding: 5px 6px; font-size: 9px; }
+    header { padding: 0 8px; }
+    .main { padding: 10px; }
+    .card { padding: 14px; }
+    .cmd-row { grid-template-columns: 1fr; gap: 4px; }
+    .flex-wrap { flex-direction: column; }
+  }
+
+  .mobile-menu-btn, .mobile-chat-btn {
+    display: none; align-items: center; justify-content: center;
+    width: 36px; height: 36px; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: 6px;
+    cursor: pointer; font-size: 16px; color: var(--text2); flex-shrink: 0;
+  }
+
+  /* ── HEADER ── */
+  header {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    position: relative; overflow: hidden;
+  }
+  header::after {
+    content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), var(--accent2), transparent);
+  }
+  .logo {
+    font-family: 'Unbounded', sans-serif; font-weight: 900; font-size: 16px;
+    letter-spacing: 0.15em;
+    background: linear-gradient(135deg, var(--accent2), var(--cyan));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .header-status { display: flex; align-items: center; gap: 20px; }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--red); box-shadow: 0 0 8px var(--red); transition: all 0.3s;
+  }
+  .status-dot.live { background: var(--green); box-shadow: 0 0 12px var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.7;transform:scale(1.3)} }
+  .status-text { font-size: 11px; letter-spacing: 0.1em; color: var(--text2); }
+  .stream-controls { display: flex; gap: 8px; }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    background: var(--bg2); border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .nav-section {
+    font-size: 9px; letter-spacing: 0.2em; color: var(--text3);
+    text-transform: uppercase; padding: 16px 8px 6px;
+    font-family: 'Unbounded', sans-serif;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 6px; cursor: pointer;
+    font-size: 12px; color: var(--text2); transition: all 0.15s;
+    border: 1px solid transparent; user-select: none;
+  }
+  .nav-item:hover { background: var(--bg3); color: var(--text); border-color: var(--border); }
+  .nav-item.active { background: rgba(124,58,237,0.15); color: var(--accent3); border-color: rgba(124,58,237,0.3); box-shadow: var(--glow2); }
+  .nav-icon { font-size: 14px; width: 18px; text-align: center; }
+
+  /* ── MAIN ── */
+  .main { overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+  .tab-content { display: none; }
+  .tab-content.active { display: flex; flex-direction: column; gap: 20px; }
+
+  /* ── TAB DESCRIPTION BANNER ── */
+  .tab-desc {
+    background: linear-gradient(135deg, rgba(124,58,237,0.08), rgba(6,182,212,0.06));
+    border: 1px solid rgba(124,58,237,0.2);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .tab-desc-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+  .tab-desc-title {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent3);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .tab-desc-text { font-size: 11px; color: var(--text2); line-height: 1.7; }
+  .tab-desc-text b { color: var(--accent3); }
+
+  .section-title {
+    font-family: 'Unbounded', sans-serif; font-size: 13px; font-weight: 700;
+    color: var(--accent3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2px;
+  }
+
+  .card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; position: relative; overflow: hidden;
+  }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .card:hover::before { opacity: 1; }
+  .card-title {
+    font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--text3); font-family: 'Unbounded', sans-serif; margin-bottom: 14px;
+  }
+
+  /* ── FEATURES GRID ── */
+  .features-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .feature-toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px; transition: all 0.2s;
+  }
+  .feature-toggle:hover { border-color: rgba(124,58,237,0.4); }
+  .feature-label { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text2); }
+  .feature-icon { font-size: 16px; }
+
+  /* ── TOGGLE ── */
+  .toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; inset: 0; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 22px; cursor: pointer; transition: all 0.3s;
+  }
+  .toggle-slider::after {
+    content: ''; position: absolute; width: 14px; height: 14px;
+    left: 3px; top: 3px; background: var(--text3); border-radius: 50%; transition: all 0.3s;
+  }
+  .toggle input:checked + .toggle-slider { background: rgba(124,58,237,0.3); border-color: var(--accent); box-shadow: 0 0 10px rgba(124,58,237,0.4); }
+  .toggle input:checked + .toggle-slider::after { transform: translateX(18px); background: var(--accent2); }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border-radius: 6px; border: none; cursor: pointer;
+    font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.08em; transition: all 0.2s; text-transform: uppercase;
+    position: relative;
+  }
+  .btn-primary { background: var(--accent); color: white; box-shadow: 0 0 15px rgba(124,58,237,0.4); }
+  .btn-primary:hover { background: var(--accent2); box-shadow: 0 0 25px rgba(124,58,237,0.6); transform: translateY(-1px); }
+  .btn-danger { background: rgba(239,68,68,0.2); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+  .btn-danger:hover { background: rgba(239,68,68,0.3); box-shadow: 0 0 15px rgba(239,68,68,0.3); }
+  .btn-success { background: rgba(34,197,94,0.2); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+  .btn-success:hover { background: rgba(34,197,94,0.3); }
+  .btn-ghost { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent3); }
+  .btn-sm { padding: 6px 12px; font-size: 10px; }
+
+  /* ── TOOLTIP  -  глобальный через JS ── */
+  #global-tip {
+    position: fixed;
+    background: #1e1e2e;
+    border: 1px solid var(--accent);
+    color: var(--text);
+    font-size: 10px;
+    font-family: 'Space Mono', monospace;
+    line-height: 1.6;
+    padding: 6px 10px;
+    border-radius: 6px;
+    max-width: 220px;
+    text-align: center;
+    pointer-events: none;
+    z-index: 99999;
+    box-shadow: 0 4px 20px rgba(124,58,237,0.3);
+    white-space: normal;
+    display: none;
+    transition: opacity 0.15s;
+    opacity: 0;
+  }
+
+  /* ── INPUTS ── */
+  .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .form-label { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text3); font-family: 'Unbounded', sans-serif; }
+  .form-input, .form-select {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+    padding: 9px 12px; color: var(--text); font-family: 'Space Mono', monospace;
+    font-size: 12px; transition: all 0.2s; outline: none; width: 100%;
+  }
+  .form-input:focus, .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,58,237,0.15); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  /* ── STATS ── */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 4px; }
+  .stat-card {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px; text-align: center; position: relative; overflow: hidden; transition: all 0.2s;
+  }
+  .stat-card:hover { border-color: var(--accent); box-shadow: var(--glow2); transform: translateY(-2px); }
+  .stat-value { font-family: 'Unbounded', sans-serif; font-size: 24px; font-weight: 900; color: var(--accent3); display: block; line-height: 1; margin-bottom: 6px; }
+  .stat-label { font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Unbounded', sans-serif; }
+
+  /* ── CHAT PANEL ── */
+  .chat-panel {
+    background: var(--bg2); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    height: calc(100vh - 60px); position: sticky; top: 0;
+  }
+  .chat-header {
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+    font-family: 'Unbounded', sans-serif; font-size: 11px; letter-spacing: 0.12em; color: var(--text2);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+  .chat-messages::-webkit-scrollbar { width: 4px; }
+  .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .chat-msg { padding: 6px 10px; border-radius: 6px; font-size: 12px; line-height: 1.5; transition: background 0.2s; border-left: 2px solid transparent; }
+  .chat-msg:hover { background: var(--bg3); }
+  .chat-msg.bot-msg { border-left-color: var(--accent); background: rgba(124,58,237,0.08); }
+  .msg-user { font-weight: 700; font-size: 11px; color: var(--accent3); margin-right: 6px; }
+  .msg-user.bot-user { color: var(--cyan); }
+  .msg-user.mod-user { color: var(--yellow); }
+  .msg-user.sub-user { color: var(--green); }
+  .msg-text { color: var(--text2); }
+  .chat-input-area { padding: 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+  .chat-input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: var(--text); font-family: 'Space Mono', monospace; font-size: 12px; outline: none; transition: border-color 0.2s; }
+  .chat-input:focus { border-color: var(--accent); }
+
+  /* ── TABLE ── */
+  .table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .table th { text-align: left; padding: 8px 12px; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); font-family: 'Unbounded', sans-serif; border-bottom: 1px solid var(--border); }
+  .table td { padding: 10px 12px; border-bottom: 1px solid rgba(42,42,58,0.5); color: var(--text2); }
+  .table tr:hover td { background: var(--bg3); }
+  .table .rank { color: var(--accent3); font-weight: 700; font-family: 'Unbounded', sans-serif; }
+  .table .pts { color: var(--yellow); font-weight: 700; }
+
+  /* ── PROGRESS BAR ── */
+  .progress-bar { width: 100%; height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; margin: 8px 0; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 4px; transition: width 0.5s ease; box-shadow: 0 0 10px rgba(124,58,237,0.5); }
+
+  /* ── CLIPS ── */
+  .clip-item { display: flex; align-items: center; justify-content: space-between; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; transition: all 0.2s; }
+  .clip-item:hover { border-color: var(--accent); }
+  .clip-label { font-size: 13px; color: var(--text); }
+  .clip-meta { font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+  /* ── NOTIFICATIONS ── */
+  .notifications { position: fixed; top: 70px; right: 16px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+  .notif { background: var(--bg2); border: 1px solid var(--accent); border-radius: 8px; padding: 12px 16px; font-size: 12px; max-width: 280px; box-shadow: var(--glow); animation: slideIn 0.3s ease, fadeOut 0.3s ease 2.7s forwards; }
+  @keyframes slideIn { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+  @keyframes fadeOut { to{opacity:0;transform:translateX(20px)} }
+
+  /* ── DEATH COUNTER ── */
+  .death-display { text-align: center; padding: 20px; }
+  .death-number { font-family: 'Unbounded', sans-serif; font-size: 64px; font-weight: 900; color: var(--red); text-shadow: 0 0 30px rgba(239,68,68,0.5); line-height: 1; display: block; margin-bottom: 8px; }
+
+  /* ── GOAL ── */
+  .goal-section { padding: 4px 0; }
+  .goal-label-text { font-family: 'Unbounded', sans-serif; font-size: 12px; margin-bottom: 8px; color: var(--text); }
+  .goal-numbers { display: flex; justify-content: space-between; font-size: 11px; color: var(--text2); margin-top: 6px; }
+
+  /* ── BADGE ── */
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  .badge-green { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+  .badge-red { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+  .badge-purple { background: rgba(124,58,237,0.15); color: var(--accent3); border: 1px solid rgba(124,58,237,0.3); }
+  .badge-cyan { background: rgba(6,182,212,0.15); color: var(--cyan); border: 1px solid rgba(6,182,212,0.3); }
+
+  /* ── HELP MODAL ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+    z-index: 2000; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--bg2); border: 1px solid var(--accent);
+    border-radius: 14px; width: 90%; max-width: 800px; max-height: 85vh;
+    overflow-y: auto; box-shadow: 0 0 60px rgba(124,58,237,0.3);
+    animation: modalIn 0.25s ease;
+  }
+  @keyframes modalIn { from{transform:scale(0.95);opacity:0} to{transform:scale(1);opacity:1} }
+  .modal-header {
+    position: sticky; top: 0; background: var(--bg2);
+    padding: 20px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    z-index: 10;
+  }
+  .modal-title { font-family: 'Unbounded', sans-serif; font-size: 15px; font-weight: 900; color: var(--accent3); letter-spacing: 0.1em; }
+  .modal-close { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); width: 32px; height: 32px; border-radius: 6px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+  .modal-close:hover { border-color: var(--red); color: var(--red); }
+  .modal-body { padding: 24px; }
+
+  /* ── COMMAND REFERENCE ── */
+  .cmd-section { margin-bottom: 24px; }
+  .cmd-section-title {
+    font-family: 'Unbounded', sans-serif; font-size: 10px; font-weight: 700;
+    color: var(--text3); letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 8px 0; border-bottom: 1px solid var(--border); margin-bottom: 12px;
+  }
+  .cmd-grid { display: flex; flex-direction: column; gap: 6px; }
+  .cmd-row {
+    display: grid; grid-template-columns: 180px 1fr auto;
+    align-items: start; gap: 12px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; transition: border-color 0.2s;
+  }
+  .cmd-row:hover { border-color: rgba(124,58,237,0.4); }
+  .cmd-name { color: var(--accent3); font-weight: 700; font-size: 12px; font-family: 'Space Mono', monospace; }
+  .cmd-desc { color: var(--text2); font-size: 11px; line-height: 1.6; }
+  .cmd-example { font-size: 10px; color: var(--text3); margin-top: 3px; }
+  .cmd-example span { color: var(--cyan); }
+
+  /* ── HELP BTN ── */
+  .help-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.3);
+    color: var(--accent3); font-size: 12px; cursor: pointer;
+    transition: all 0.2s; font-weight: 700; flex-shrink: 0;
+  }
+  .help-btn:hover { background: rgba(124,58,237,0.3); box-shadow: 0 0 12px rgba(124,58,237,0.4); }
+
+  /* ── MISC ── */
+  body.low-perf * { animation: none !important; transition: none !important; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+  .separator { height: 1px; background: var(--border); margin: 4px 0; }
+  .flex { display: flex; } .gap-8 { gap: 8px; } .gap-12 { gap: 12px; }
+  .items-center { align-items: center; } .justify-between { justify-content: space-between; }
+  .flex-wrap { flex-wrap: wrap; } .mt-8 { margin-top: 8px; } .mt-16 { margin-top: 16px; } .mb-8 { margin-bottom: 8px; }
+  .wslog { max-height: 120px; overflow-y: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-size: 10px; color: var(--green); line-height: 1.8; }
+  .connection-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; font-size: 11px; color: var(--text2); margin-bottom: 12px; }
+
+  /* Mobile chat overlay */
+  .chat-overlay { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.7); }
+  .chat-overlay.open { display: block; }
+  .chat-panel-mobile { position: fixed; bottom: 0; left: 0; right: 0; height: 70vh; background: var(--bg2); border-top: 1px solid var(--border); z-index: 501; display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s ease; }
+  .chat-panel-mobile.open { transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- ── HELP MODAL ─────────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="helpModal" onclick="if(event.target===this)closeHelp()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📖 СПРАВОЧНИК КОМАНД</div>
+      <button class="modal-close" onclick="closeHelp()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="cmd-section">
+        <div class="cmd-section-title">👥 Команды для всех зрителей</div>
+        <div class="cmd-grid">
+          <div class="cmd-row">
+            <div><div class="cmd-name">!points</div></div>
+            <div><div class="cmd-desc">Посмотреть сколько у тебя баллов</div></div>
+            <div><span class="badge badge-green">Все</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">!top</div></div>
+            <div><div class="cmd-desc">Топ-5 зрителей по количеству баллов</div></div>
+            <div><span class="badge badge-green">Все</span></div>
+          </div>
+          
+          
+          
+          
+          <div class="cmd-row">
+            <div></div>
+            <div><div class="cmd-desc">Русская рулетка. 1 из 6  -  потеря ставки + тайм-аут 60 сек. 5 из 6  -  выжил, +50% от ставки (бросок × 20).</div></div>
+            <div><span class="badge badge-green">Все</span></div>
+          </div>
+          
+          <div class="cmd-row">
+            <div><div class="cmd-name">!vip</div></div>
+            <div><div class="cmd-desc">Купить VIP-статус на 24 часа за 1000 баллов.</div></div>
+            <div><span class="badge badge-green">Все</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">!clip <b>[название]</b></div></div>
+            <div>
+              <div class="cmd-desc">Создать временную метку в истории клипов.</div>
+              <div class="cmd-example">Пример: <span>!clip эпичный момент</span></div>
+            </div>
+            <div><span class="badge badge-green">Все</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">!uptime</div></div>
+            <div><div class="cmd-desc">Сколько времени идёт стрим.</div></div>
+            <div><span class="badge badge-green">Все</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">!deaths</div></div>
+            <div><div class="cmd-desc">Посмотреть текущий счётчик смертей стримера.</div></div>
+            <div><span class="badge badge-green">Все</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">!goal</div></div>
+            <div><div class="cmd-desc">Прогресс текущей цели стрима (подписки, донаты и т.д.)</div></div>
+            <div><span class="badge badge-green">Все</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">!tg / !tiktok / !discord</div></div>
+            <div><div class="cmd-desc">Бот пишет ссылки на соцсети стримера в чат.</div></div>
+            <div><span class="badge badge-green">Все</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">!followage</div></div>
+            <div><div class="cmd-desc">Посмотреть как давно ты фолловишь канал.</div></div>
+            <div><span class="badge badge-green">Все</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cmd-section">
+        <div class="cmd-section-title">🔧 Команды для модераторов</div>
+        <div class="cmd-grid">
+          <div class="cmd-row">
+            <div><div class="cmd-name">!trivia</div></div>
+            <div><div class="cmd-desc">Запустить викторину. Первый правильный ответ в чате получает 200 баллов.</div></div>
+            <div><span class="badge badge-purple">Мод</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">!so <b>@user</b></div></div>
+            <div>
+              <div class="cmd-desc">Шаутаут другому стримеру  -  бот пишет ссылку на его канал.</div>
+              <div class="cmd-example">Пример: <span>!so @другойстример</span></div>
+            </div>
+            <div><span class="badge badge-purple">Мод</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">!permit <b>@user</b></div></div>
+            <div>
+              <div class="cmd-desc">Разрешить зрителю отправить одну ссылку (не получит предупреждение от модерации).</div>
+              <div class="cmd-example">Пример: <span>!permit @viewer1</span></div>
+            </div>
+            <div><span class="badge badge-purple">Мод</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">!death</div></div>
+            <div><div class="cmd-desc">Добавить +1 к счётчику смертей стримера.</div></div>
+            <div><span class="badge badge-purple">Мод</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">!setgoal <b>[число]</b></div></div>
+            <div>
+              <div class="cmd-desc">Установить текущее значение прогресса цели.</div>
+              <div class="cmd-example">Пример: <span>!setgoal 42</span></div>
+            </div>
+            <div><span class="badge badge-purple">Мод</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cmd-section">
+        <div class="cmd-section-title">🔔 Автоматические события (не команды)</div>
+        <div class="cmd-grid">
+          <div class="cmd-row">
+            <div><div class="cmd-name">Новый фолловер</div></div>
+            <div><div class="cmd-desc">Бот автоматически приветствует нового фолловера в чате.</div></div>
+            <div><span class="badge badge-cyan">Авто</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">Подписка / Ресаб</div></div>
+            <div><div class="cmd-desc">Бот благодарит за подписку. +500 баллов подписчику.</div></div>
+            <div><span class="badge badge-cyan">Авто</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">Gift sub</div></div>
+            <div><div class="cmd-desc">Бот благодарит за подарочные подписки. +200 баллов за каждую подписку.</div></div>
+            <div><span class="badge badge-cyan">Авто</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">Рейд</div></div>
+            <div><div class="cmd-desc">Бот приветствует рейдеров. Рейдер получает баллы: кол-во зрителей × 5.</div></div>
+            <div><span class="badge badge-cyan">Авто</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">Bits / Донат</div></div>
+            <div><div class="cmd-desc">Бот благодарит за bits. +баллы: кол-во bits ÷ 10.</div></div>
+            <div><span class="badge badge-cyan">Авто</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">Первое сообщение</div></div>
+            <div><div class="cmd-desc">Бот приветствует зрителя который впервые написал в чат.</div></div>
+            <div><span class="badge badge-cyan">Авто</span></div>
+          </div>
+          <div class="cmd-row">
+            <div><div class="cmd-name">Возвращение</div></div>
+            <div><div class="cmd-desc">Если зритель не писал N дней (настраивается)  -  бот радуется его возвращению.</div></div>
+            <div><span class="badge badge-cyan">Авто</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cmd-section">
+        <div class="cmd-section-title">⚙️ Система баллов</div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-size:11px;color:var(--text2);line-height:2">
+          💬 За каждое сообщение в чате → <b style="color:var(--yellow)">+5 баллов</b> (настраивается)<br>
+          👁 За каждую минуту просмотра → <b style="color:var(--yellow)">+1 балл</b> (настраивается)<br>
+          🎉 За подписку (sub) → <b style="color:var(--yellow)">+500 баллов</b><br>
+          🎁 За подаренную подписку (gift sub) → <b style="color:var(--yellow)">+200 баллов</b> за каждую<br>
+          🚨 За рейд → <b style="color:var(--yellow)">+5 баллов × кол-во зрителей</b><br>
+          💎 За bits → <b style="color:var(--yellow)">+1 балл за каждые 10 bits</b>
+        </div>
+      </div>
+
+      <div class="cmd-section">
+        <div class="cmd-section-title">🛡 Система модерации</div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-size:11px;color:var(--text2);line-height:2">
+          ⚠️ <b>1 предупреждение</b> → сообщение об ошибке в чат<br>
+          🔇 <b>2 предупреждения</b> → тайм-аут 5 минут<br>
+          🔨 <b>3+ предупреждений</b> → бан<br>
+          <br>
+          Что триггерит: ссылки без разрешения, слишком много капса (≥70%), спам одинаковыми сообщениями, забаненные слова.<br>
+          Модераторы освобождены от всех ограничений.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- HEADER -->
+  <header>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="mobile-menu-btn" onclick="toggleSidebar()" title="Меню">☰</div>
+      <div class="logo">⚡ TWITCH BOT</div>
+    </div>
+    <div class="header-status">
+      <div class="flex items-center gap-8">
+        <div class="status-dot" id="streamDot"></div>
+        <span class="status-text" id="streamStatus">СТРИМ ОФЛАЙН</span>
+      </div>
+      <div class="flex items-center gap-8">
+        <div class="status-dot" id="wsDot" style="background:var(--yellow);box-shadow:0 0 8px var(--yellow)"></div>
+        <span class="status-text" id="wsStatus">ПОДКЛЮЧЕНИЕ...</span>
+      </div>
+      <div class="stream-controls flex gap-8">
+        <button class="btn btn-success btn-sm" onclick="startStream()"
+          data-tip="Запустить стрим: начать отсчёт аптайма, начислять баллы за просмотр, отправить приветствие в чат">▶ СТАРТ</button>
+        <button class="btn btn-danger btn-sm" onclick="stopStream()"
+          data-tip="Остановить стрим: отправить прощание в чат, сбросить аптайм">■ СТОП</button>
+        <button class="btn btn-ghost btn-sm" id="lowPerfBtn" onclick="toggleLowPerf()"
+          data-tip="Режим низкой нагрузки: уменьшает анимации и частоту обновлений. Включи если лагает.">⚡ LOW</button>
+        <button class="btn btn-ghost btn-sm" onclick="openHelp()"
+          data-tip="Справочник всех команд бота с примерами">? ПОМОЩЬ</button>
+      </div>
+      <div class="mobile-chat-btn" onclick="toggleChat()">💬</div>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="nav-section">Основное</div>
+    <div class="nav-item active" onclick="showTab('dashboard', this)"
+      data-tip="Общая статистика, топ баллов, прогресс цели">
+      <span class="nav-icon">📊</span> Dashboard
+    </div>
+    <div class="nav-item" onclick="showTab('chat', this)"
+      data-tip="Тест команд без Twitch, список всех команд, ручная отправка сообщений">
+      <span class="nav-icon">💬</span> Чат & Команды
+    </div>
+    <div class="nav-item" onclick="showTab('points', this)"
+      data-tip="Настройки начисления баллов, управление балансом зрителей, таблица лидеров">
+      <span class="nav-icon">💰</span> Баллы
+    </div>
+    <div class="nav-item" onclick="showTab('moderation', this)"
+      data-tip="Блокировка ссылок, капса, спама. Забаненные слова. Управление варнами.">
+      <span class="nav-icon">🛡</span> Модерация
+    </div>
+    <div class="nav-section">Контент</div>
+    <div class="nav-item" onclick="showTab('events', this)"
+      data-tip="Автоответы на фолловы, сабы, рейды, bits. Настройка текстов и задержек.">
+      <span class="nav-icon">🔔</span> События
+    </div>
+
+    <div class="nav-item" onclick="showTab('autopost', this)"
+      data-tip="Автоматическая публикация ссылок на соцсети через заданный интервал">
+      <span class="nav-icon">📣</span> Автопост
+    </div>
+
+    <div class="nav-item" onclick="showTab('commands', this)"
+      data-tip="Добавляй свои команды через UI: !discord, !social, !price и любые другие">
+      <span class="nav-icon">⌨️</span> Кастомные команды
+    </div>
+    <div class="nav-item" onclick="showTab('songs', this)"
+      data-tip="Очередь реквестов от зрителей командой !sr [название]">
+      <span class="nav-icon">🎵</span> Очередь реквестов
+    </div>
+    <div class="nav-item" onclick="showTab('vip', this)"
+      data-tip="Список VIP-зрителей, выдача и отзыв VIP вручную">
+      <span class="nav-icon">⭐</span> VIP зрители
+    </div>
+    <div class="nav-item" onclick="showTab('obs', this)"
+      data-tip="Оверлеи для OBS: алерты, чат, цель, топ баллов и другие">
+      <span class="nav-icon">🎬</span> OBS Оверлеи
+    </div>
+    <div class="nav-section">Игры</div>
+    <div class="nav-item" onclick="showTab('trivia', this)"
+      data-tip="Настройки викторины: свои вопросы, ответы, награды. !trivia запускает мод">
+      <span class="nav-icon">🧠</span> Викторина
+    </div>
+    <div class="nav-section">Система</div>
+    <div class="nav-item" onclick="showTab('features', this)"
+      data-tip="Включить или выключить любую функцию бота по отдельности">
+      <span class="nav-icon">⚙️</span> Функции (on/off)
+    </div>
+    <div class="nav-item" onclick="showTab('settings', this)"
+      data-tip="Twitch OAuth токен, ник бота, название канала">
+      <span class="nav-icon">🔑</span> Настройки бота
+    </div>
+    <div class="separator" style="margin-top: auto;"></div>
+    <div class="nav-item" onclick="saveAllSettings()" style="margin-top:8px"
+      data-tip="Сохранить все поля на текущей странице в базу данных">
+      <span class="nav-icon">💾</span> Сохранить всё
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div id="tab-dashboard" class="tab-content active">
+      <div class="tab-desc">
+        <div class="tab-desc-icon">📊</div>
+        <div>
+          <div class="tab-desc-title">Dashboard  -  обзор стрима</div>
+          <div class="tab-desc-text">
+            Главный экран: статистика в реальном времени, прогресс цели и топ зрителей по баллам.
+            Используй кнопки <b>▶ СТАРТ</b> и <b>■ СТОП</b> вверху для управления стримом.
+            Системный лог внизу показывает все события: фолловы, рейды, клипы, модерацию.
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card" data-tip="Время с момента нажатия СТАРТ. Обновляется каждую минуту.">
+          <span class="stat-value" id="stat-uptime"> - </span>
+          <div class="stat-label">Аптайм</div>
+        </div>
+        <div class="stat-card" data-tip="Всего сообщений в чате за всё время (из базы данных).">
+          <span class="stat-value" id="stat-chatcount">0</span>
+          <div class="stat-label">Сообщений за стрим</div>
+        </div>
+        <div class="stat-card" data-tip="Счётчик смертей стримера. Мод пишет !death в чат, или используй кнопку на вкладке Счётчики.">
+          <span class="stat-value" id="stat-deaths" style="color:var(--red)">0</span>
+          <div class="stat-label">Смертей 💀</div>
+        </div>
+        <div class="stat-card" data-tip="Количество созданных клипов за сессию.">
+          <span class="stat-value" id="stat-clips">0</span>
+          <div class="stat-label">Клипов</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Прогресс цели</div>
+        <div class="goal-section">
+          <div class="goal-label-text" id="goal-label-display">Цель:  - </div>
+          <div class="progress-bar"><div class="progress-fill" id="goal-progress" style="width:0%"></div></div>
+          <div class="goal-numbers">
+            <span id="goal-current-display">0</span>
+            <span id="goal-pct-display">0%</span>
+            <span id="goal-target-display">100</span>
+          </div>
+        </div>
+        <div class="flex gap-8 mt-16">
+          <input class="form-input" id="goal-inc" type="number" placeholder="+N" style="width:80px"
+            title="Введи число и нажми + Добавить  -  текущее значение увеличится на это число">
+          <button class="btn btn-primary btn-sm" onclick="incrementGoal()"
+            data-tip="Увеличить текущее значение цели на указанное число">+ Добавить</button>
+          <button class="btn btn-ghost btn-sm" onclick="showTab('obs', document.querySelector('[onclick*=overlays]'))"
+            data-tip="Перейти к полным настройкам цели">⚙ Настроить</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Топ-10 баллов</div>
+        <table class="table">
+          <thead><tr><th>#</th><th>Зритель</th><th>Баллы</th></tr></thead>
+          <tbody id="top-points-body">
+            <tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px">Нет данных</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Системный лог</div>
+        <div class="wslog" id="sys-log">Ожидание событий...<br></div>
+      </div>
+    </div>
+
+    <!-- CHAT & COMMANDS -->
+    <div id="tab-chat" class="tab-content">
+      <div class="tab-desc">
+        <div class="tab-desc-icon">💬</div>
+        <div>
+          <div class="tab-desc-title">Чат & Команды</div>
+          <div class="tab-desc-text">
+            Здесь можно <b>тестировать команды</b> без реального Twitch  -  симулируй сообщения от любого зрителя.
+            Также можно вручную отправить любое сообщение в чат от имени бота.
+            Полный список команд с описанием  -  в таблице ниже, или нажми <b>? ПОМОЩЬ</b> вверху для справочника с примерами.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Тест команд (без реального Twitch)</div>
+        <div class="flex gap-8 mb-8">
+          <input class="form-input" id="test-user" placeholder="username" style="width:140px" value="viewer1"
+            title="Ник зрителя от имени которого отправляется сообщение">
+          <input class="form-input" id="test-msg" placeholder="!points или любое сообщение"
+            title="Команда или сообщение. Команды начинаются с !">
+          <label class="flex items-center gap-8" style="font-size:11px;color:var(--text2);flex-shrink:0"
+            title="Если включено  -  зритель считается модератором и может использовать мод-команды">
+            <input type="checkbox" id="test-mod"> Мод
+          </label>
+          <button class="btn btn-primary btn-sm" onclick="testChat()"
+            data-tip="Отправить тестовое сообщение  -  бот обработает его как настоящее">Отправить</button>
+        </div>
+        <div style="font-size:10px;color:var(--text3)">Попробуй: !points · !top · !daily · !sr [песня] · !trivia (запускает мод)</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px">
+          Список команд
+          <button class="help-btn" onclick="openHelp()" title="Открыть справочник с примерами">?</button>
+        </div>
+        <table class="table">
+          <thead><tr><th>Команда</th><th>Описание</th><th>Для кого</th></tr></thead>
+          <tbody>
+            <tr><td style="color:var(--accent3)">!points</td><td>Посмотреть баллы</td><td><span class="badge badge-green">Все</span></td></tr>
+            <tr><td style="color:var(--accent3)">!top</td><td>Топ-5 по баллам</td><td><span class="badge badge-green">Все</span></td></tr>
+            
+            
+            
+            
+            
+            
+            <tr><td style="color:var(--accent3)">!vip</td><td>VIP статус (−1000)</td><td><span class="badge badge-green">Все</span></td></tr>
+            <tr><td style="color:var(--accent3)">!clip [название]</td><td>Создать клип</td><td><span class="badge badge-green">Все</span></td></tr>
+            <tr><td style="color:var(--accent3)">!uptime</td><td>Время стрима</td><td><span class="badge badge-green">Все</span></td></tr>
+            <tr><td style="color:var(--accent3)">!deaths</td><td>Счётчик смертей</td><td><span class="badge badge-green">Все</span></td></tr>
+            <tr><td style="color:var(--accent3)">!goal</td><td>Прогресс цели</td><td><span class="badge badge-green">Все</span></td></tr>
+            <tr><td style="color:var(--accent3)">!tg / !tiktok / !discord</td><td>Ссылки на соцсети</td><td><span class="badge badge-green">Все</span></td></tr>
+            <tr><td style="color:var(--yellow)">!trivia</td><td>Запустить викторину</td><td><span class="badge badge-purple">Мод</span></td></tr>
+            <tr><td style="color:var(--yellow)">!so @user</td><td>Шаутаут стримеру</td><td><span class="badge badge-purple">Мод</span></td></tr>
+            <tr><td style="color:var(--yellow)">!permit @user</td><td>Разрешить ссылку</td><td><span class="badge badge-purple">Мод</span></td></tr>
+            <tr><td style="color:var(--yellow)">!death</td><td>+1 к счётчику смертей</td><td><span class="badge badge-purple">Мод</span></td></tr>
+            <tr><td style="color:var(--yellow)">!setgoal [N]</td><td>Установить прогресс цели</td><td><span class="badge badge-purple">Мод</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Отправить сообщение от бота</div>
+        <div class="flex gap-8">
+          <input class="form-input" id="broadcast-msg" placeholder="Сообщение в чат..."
+            title="Бот напишет это сообщение в реальный Twitch-чат (если подключён) и в панель">
+          <button class="btn btn-primary" onclick="broadcastMsg()"
+            data-tip="Отправить сообщение от имени бота в Twitch-чат">Отправить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- POINTS & GAMES -->
+    <div id="tab-points" class="tab-content">
+      <div class="tab-desc">
+        <div class="tab-desc-icon">💰</div>
+        <div>
+          <div class="tab-desc-title">Баллы & Мини-игры</div>
+          <div class="tab-desc-text">
+            Зрители зарабатывают баллы за сообщения и просмотр. Тратят баллы на мини-игры и привилегии.
+            Здесь можно настроить скорость накопления, вручную добавить или убрать баллы у любого зрителя,
+            и посмотреть таблицу лидеров. Включить/выключить конкретные игры  -  на вкладке <b>Функции</b>.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Настройки начисления</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Баллов за сообщение</label>
+            <input class="form-input" type="number" id="points_per_message" value="5" min="0" max="100"
+              title="Сколько баллов зритель получает за каждое сообщение в чате">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Баллов за минуту просмотра</label>
+            <input class="form-input" type="number" id="points_per_minute" value="5" min="0" max="20"
+              title="Пассивное начисление каждую минуту пока идёт стрим">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Управление баллами зрителя</div>
+        <div class="flex gap-8 mb-8">
+          <input class="form-input" id="pts-username" placeholder="username"
+            title="Ник зрителя (без @, строчными буквами)">
+          <input class="form-input" id="pts-amount" type="number" placeholder="Кол-во" style="width:100px"
+            title="Количество баллов для добавления или списания">
+          <button class="btn btn-success btn-sm" onclick="managePoints('add')"
+            data-tip="Добавить указанное количество баллов зрителю">+ Добавить</button>
+          <button class="btn btn-danger btn-sm" onclick="managePoints('remove')"
+            data-tip="Списать указанное количество баллов у зрителя">- Убрать</button>
+        </div>
+        <div id="pts-result" style="font-size:12px;color:var(--text2)"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Таблица лидеров</div>
+        <table class="table">
+          <thead><tr><th>#</th><th>Зритель</th><th>Баллы</th></tr></thead>
+          <tbody id="leaderboard-body">
+            <tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px">Нет данных</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Что можно купить за баллы</div>
+        <div class="features-grid">
+          
+          <div class="feature-toggle" title="!vip  -  стоит 10 000 баллов. Зритель получает VIP-статус на 24 часа."><span class="feature-label"><span class="feature-icon">⭐</span>!vip (<span id="vip-cost-display">8000</span> баллов)</span></div>
+          
+          
+          
+          
+          
+          <div class="feature-toggle" title="Мод запускает !trivia. Первый ответивший правильно получает 200 баллов."><span class="feature-label"><span class="feature-icon">🧠</span>Викторина (200)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODERATION -->
+    <div id="tab-moderation" class="tab-content">
+      <div class="tab-desc">
+        <div class="tab-desc-icon">🛡</div>
+        <div>
+          <div class="tab-desc-title">Модерация чата</div>
+          <div class="tab-desc-text">
+            Автоматическая защита чата от нарушений. Система предупреждений:
+            <b>1 варн</b> → сообщение в чат, <b>2 варна</b> → тайм-аут 5 мин, <b>3+ варна</b> → бан.
+            Модераторы и стример освобождены от всех ограничений. Чтобы разрешить зрителю ссылку  -  мод пишет <b>!permit @ник</b>.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Правила модерации</div>
+        <div class="features-grid">
+          <div class="feature-toggle" title="Удалять сообщения содержащие ссылки (http://, www.). Мод может выдать разрешение командой !permit @ник">
+            <span class="feature-label"><span class="feature-icon">🔗</span>Блок ссылок</span>
+            <label class="toggle"><input type="checkbox" id="mod_links" onchange="saveSetting('mod_links', this.checked?'1':'0')"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="feature-toggle" title="Удалять сообщения где % заглавных букв превышает порог (настраивается ниже)">
+            <span class="feature-label"><span class="feature-icon">🔠</span>Блок капса</span>
+            <label class="toggle"><input type="checkbox" id="mod_caps" onchange="saveSetting('mod_caps', this.checked?'1':'0')"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="feature-toggle" title="Удалять повторяющиеся одинаковые сообщения от одного зрителя за 30 секунд">
+            <span class="feature-label"><span class="feature-icon">🔁</span>Антиспам</span>
+            <label class="toggle"><input type="checkbox" id="mod_spam" onchange="saveSetting('mod_spam', this.checked?'1':'0')"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="feature-toggle" title="Удалять сообщения содержащие слова из списка запрещённых (настрой ниже)">
+            <span class="feature-label"><span class="feature-icon">📝</span>Забанен. слова</span>
+            <label class="toggle"><input type="checkbox" id="mod_banned_words" onchange="saveSetting('mod_banned_words', this.checked?'1':'0')"><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Пороги срабатывания</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Капс % (удалить если ≥)</label>
+            <input class="form-input" type="number" id="caps_threshold" value="70" min="50" max="100"
+              title="Если доля заглавных букв в сообщении ≥ этого числа  -  сообщение удаляется. По умолчанию 70%.">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Спам (одинаковых за 30 сек)</label>
+            <input class="form-input" type="number" id="spam_threshold" value="3" min="2" max="10"
+              title="Если зритель отправил одно и то же сообщение N раз за 30 секунд  -  это спам.">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Запрещённые слова</div>
+        <div class="form-group">
+          <textarea class="form-input" id="banned_words" rows="3" placeholder="слово1, слово2, слово3..."
+            title="Слова через запятую. Регистр не важен. Если слово найдено в сообщении  -  сообщение удаляется и зритель получает варн."></textarea>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveModerationSettings()"
+          data-tip="Сохранить все настройки модерации">💾 Сохранить</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Управление предупреждениями</div>
+        <div class="flex gap-8 mb-8 flex-wrap">
+          <input class="form-input" id="warn-username" placeholder="username" style="width:140px"
+            title="Ник зрителя (без @)">
+          <input class="form-input" id="warn-reason" placeholder="Причина (необязательно)"
+            title="Причина предупреждения">
+          <button class="btn btn-danger btn-sm" onclick="addManualWarn()"
+            data-tip="Выдать варн вручную">⚠️ Выдать варн</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearWarnings()"
+            data-tip="Сбросить все варны зрителя">🗑 Сбросить</button>
+        </div>
+        <div id="warn-result" style="font-size:12px;color:var(--text2)"></div>
+        <p style="font-size:11px;color:var(--text3);margin-top:12px;line-height:2">
+          ⚠️ 1 варн → предупреждение в чат<br>
+          🔇 2 варна → тайм-аут 5 минут<br>
+          🔨 3+ варна → бан
+        </p>
+      </div>
+    </div>
+
+    <!-- EVENTS -->
+    <div id="tab-events" class="tab-content">
+      <div class="tab-desc">
+        <div class="tab-desc-icon">🔔</div>
+        <div>
+          <div class="tab-desc-title">Автособытия чата</div>
+          <div class="tab-desc-text">
+            Бот автоматически реагирует на события Twitch: фолловы, сабы, рейды, bits.
+            Для каждого события можно настроить <b>текст сообщения</b> с переменными:
+            <b>{name}</b>  -  ник, <b>{count}</b>  -  число, <b>{months}</b>  -  месяцы подписки, <b>{game}</b>  -  игра.
+            Кнопка <b>▶ Тест</b> симулирует событие без реального Twitch.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Главный переключатель</div>
+        <div class="feature-toggle" style="max-width:300px"
+          title="Выключи чтобы отключить ВСЕ автособытия сразу (фолловы, сабы, рейды и т.д.)">
+          <span class="feature-label"><span class="feature-icon">🔔</span>Все события включены</span>
+          <label class="toggle"><input type="checkbox" id="feat_events" onchange="saveFeat('feat_events',this)"><span class="toggle-slider"></span></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>❤️ Новый фолловер</span>
+          <label class="toggle" title="Включить/выключить реакцию на новых фолловеров"><input type="checkbox" id="evt_follow" onchange="saveFeat('evt_follow',this)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Текст сообщения</label>
+          <input class="form-input" id="msg_follow" placeholder="❤️ Спасибо за фолло, {name}!"
+            title="Используй {name}  -  заменится на ник фолловера">
+        </div>
+        <div class="flex gap-8">
+          <button class="btn btn-ghost btn-sm" onclick="saveEventMsg('msg_follow')" data-tip="Сохранить текст">💾 Сохранить</button>
+          <button class="btn btn-primary btn-sm" onclick="testEvent('follow','TestViewer')" data-tip="Симулировать фолло от TestViewer">▶ Тест</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🎉 Подписка (sub / resub)</span>
+          <label class="toggle" title="Включить/выключить реакцию на подписки"><input type="checkbox" id="evt_sub" onchange="saveFeat('evt_sub',this)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Первая подписка</label>
+          <input class="form-input" id="msg_sub" placeholder="🎉 {name} оформил подписку!"
+            title="{name}  -  ник подписчика. Подписчик получает +500 баллов автоматически.">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ресаб (повторная подписка)</label>
+          <input class="form-input" id="msg_resub" placeholder="🔄 {name} продлил на {months} месяцев!"
+            title="{months}  -  количество месяцев подряд">
+        </div>
+        <div class="flex gap-8">
+          <button class="btn btn-ghost btn-sm" onclick="saveEventMsgs(['msg_sub','msg_resub'])">💾 Сохранить</button>
+          <button class="btn btn-primary btn-sm" onclick="testEvent('sub','TestViewer',{months:3,resub:true})" data-tip="Тест ресаба на 3 месяца">▶ Тест ресаб</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🎁 Gift sub</span>
+          <label class="toggle" title="Включить/выключить реакцию на подарочные подписки"><input type="checkbox" id="evt_giftsub" onchange="saveFeat('evt_giftsub',this)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Текст сообщения</label>
+          <input class="form-input" id="msg_giftsub" placeholder="🎁 {name} подарил {count} подписок!"
+            title="{name}  -  кто подарил, {count}  -  сколько подписок. Дарящий получает +200 баллов за каждую.">
+        </div>
+        <div class="flex gap-8">
+          <button class="btn btn-ghost btn-sm" onclick="saveEventMsg('msg_giftsub')">💾 Сохранить</button>
+          <button class="btn btn-primary btn-sm" onclick="testEvent('giftsub','TestGifter',{count:5})" data-tip="Тест: TestGifter дарит 5 подписок">▶ Тест</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🚨 Рейд</span>
+          <label class="toggle" title="Включить/выключить реакцию на рейды"><input type="checkbox" id="evt_raid" onchange="saveFeat('evt_raid',this)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Текст сообщения</label>
+          <input class="form-input" id="msg_raid" placeholder="🚨 РЕЙД! {name} ведёт {count} зрителей!"
+            title="{name}  -  ник рейдера, {count}  -  кол-во зрителей. Рейдер получает +5 баллов × кол-во зрителей.">
+        </div>
+        <div class="flex gap-8">
+          <button class="btn btn-ghost btn-sm" onclick="saveEventMsg('msg_raid')">💾 Сохранить</button>
+          <button class="btn btn-primary btn-sm" onclick="testEvent('raid','TestRaider',{viewers:42})" data-tip="Тест: рейд на 42 зрителя">▶ Тест</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>💎 Bits / Донат</span>
+          <label class="toggle" title="Включить/выключить реакцию на bits"><input type="checkbox" id="evt_bits" onchange="saveFeat('evt_bits',this)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Текст сообщения</label>
+          <input class="form-input" id="msg_bits" placeholder="💎 {name} скинул {count} bits!"
+            title="{name}  -  ник, {count}  -  кол-во bits. Донатер получает +1 балл за каждые 10 bits.">
+        </div>
+        <div class="flex gap-8">
+          <button class="btn btn-ghost btn-sm" onclick="saveEventMsg('msg_bits')">💾 Сохранить</button>
+          <button class="btn btn-primary btn-sm" onclick="testEvent('bits','TestDonator',{amount:500})" data-tip="Тест: 500 bits от TestDonator">▶ Тест</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>👋 Первое сообщение</span>
+          <label class="toggle" title="Приветствовать зрителя когда он впервые пишет в чат этого стрима"><input type="checkbox" id="evt_firstmsg" onchange="saveFeat('evt_firstmsg',this)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Текст приветствия</label>
+          <input class="form-input" id="msg_firstmsg" placeholder="👋 {name} впервые написал  -  добро пожаловать!"
+            title="Срабатывает один раз за стрим для каждого зрителя">
+        </div>
+        <div class="flex gap-8">
+          <button class="btn btn-ghost btn-sm" onclick="saveEventMsg('msg_firstmsg')">💾 Сохранить</button>
+          <button class="btn btn-primary btn-sm" onclick="testEvent('firstmsg','NewViewer')">▶ Тест</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🎊 Возвращение зрителя</span>
+          <label class="toggle" title="Приветствовать зрителя который давно не заходил в чат"><input type="checkbox" id="evt_return" onchange="saveFeat('evt_return',this)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Текст сообщения</label>
+          <input class="form-input" id="msg_return" placeholder="🎊 {name} вернулся! Давно не виделись!"
+            title="Срабатывает если зритель не писал в чат дольше N дней (настраивается ниже)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Считать «давно»  -  дней отсутствия</label>
+          <input class="form-input" type="number" id="return_days" value="30" min="1" max="365" style="width:120px"
+            title="Если зритель не писал в чат больше этого числа дней  -  считается что он 'вернулся'">
+        </div>
+        <div class="flex gap-8">
+          <button class="btn btn-ghost btn-sm" onclick="saveEventMsgs(['msg_return','return_days'])">💾 Сохранить</button>
+          <button class="btn btn-primary btn-sm" onclick="testEvent('return','OldFriend')">▶ Тест</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🏆 Milestone фолловеров</span>
+          <label class="toggle" title="Отмечать достижение круглых чисел фолловеров"><input type="checkbox" id="evt_milestone" onchange="saveFeat('evt_milestone',this)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Текст сообщения</label>
+          <input class="form-input" id="msg_milestone" placeholder="🏆 УРА! Уже {count} фолловеров!"
+            title="{count}  -  количество фолловеров на момент достижения milestone">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Числа milestone (через запятую)</label>
+          <input class="form-input" id="milestones" placeholder="100,500,1000,5000,10000"
+            title="При достижении каждого из этих чисел фолловеров бот напишет сообщение">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Текущее число фолловеров</label>
+          <input class="form-input" type="number" id="follower_count" value="0" style="width:150px"
+            title="Задай реальное число чтобы milestone считались правильно">
+        </div>
+        <div class="flex gap-8">
+          <button class="btn btn-ghost btn-sm" onclick="saveEventMsgs(['msg_milestone','milestones','follower_count'])">💾 Сохранить</button>
+          <button class="btn btn-primary btn-sm" onclick="testEvent('milestone',null,{count:1000})" data-tip="Симулировать достижение 1000 фолловеров">▶ Тест (1000)</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🎮 Авто-приветствие и прощание стрима</div>
+        <div class="features-grid" style="margin-bottom:16px">
+          <div class="feature-toggle" title="Бот напишет приветствие в чат через ~3 секунды после нажатия кнопки СТАРТ">
+            <span class="feature-label"><span class="feature-icon">▶️</span>Привет при старте</span>
+            <label class="toggle"><input type="checkbox" id="evt_stream_hello" onchange="saveFeat('evt_stream_hello',this)"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="feature-toggle" title="Бот напишет прощание в чат при нажатии кнопки СТОП">
+            <span class="feature-label"><span class="feature-icon">💤</span>Гудбай при стопе</span>
+            <label class="toggle"><input type="checkbox" id="evt_stream_bye" onchange="saveFeat('evt_stream_bye',this)"><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Текст приветствия</label>
+          <input class="form-input" id="msg_stream_hello" placeholder="🎮 Стрим начался! Всем привет, погнали! 🚀">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Текст прощания</label>
+          <input class="form-input" id="msg_stream_bye" placeholder="💤 Стрим окончен! Всем спасибо! ❤️">
+        </div>
+        <div class="flex gap-8">
+          <button class="btn btn-ghost btn-sm" onclick="saveEventMsgs(['msg_stream_hello','msg_stream_bye'])">💾 Сохранить</button>
+          <button class="btn btn-primary btn-sm" onclick="testBotMsg(document.getElementById('msg_stream_hello').value)" data-tip="Отправить текст приветствия в чат прямо сейчас">▶ Тест привет</button>
+          <button class="btn btn-ghost btn-sm" onclick="testBotMsg(document.getElementById('msg_stream_bye').value)" data-tip="Отправить текст прощания в чат прямо сейчас">▶ Тест гудбай</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">⏱ Задержка перед ответом</div>
+        <div class="form-group">
+          <label class="form-label">Секунд до ответа бота (0-10)</label>
+          <input class="form-input" type="number" id="event_delay" value="2" min="0" max="10" style="width:100px"
+            title="Небольшая задержка выглядит естественнее. 2-3 секунды  -  оптимально.">
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="saveSetting('event_delay', document.getElementById('event_delay').value)">💾 Сохранить</button>
+      </div>
+    </div>
+
+    <!-- AUTOPOST -->
+    <div id="tab-autopost" class="tab-content">
+      <div class="tab-desc">
+        <div class="tab-desc-icon">📣</div>
+        <div>
+          <div class="tab-desc-title">Автопост ссылок</div>
+          <div class="tab-desc-text">
+            Бот автоматически публикует ссылки на твои соцсети в чат через заданный интервал.
+            Заполни нужные ссылки и укажи интервал. Зрители также могут запросить ссылки
+            командами <b>!tg</b>, <b>!tiktok</b>, <b>!discord</b> в любой момент.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Ссылки для автопостинга</span>
+          <button class="btn btn-primary btn-sm" onclick="addAutopostLink()"
+            data-tip="Добавить новую ссылку">+ Добавить</button>
+        </div>
+        <div id="autopost-links-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
+        <button class="btn btn-ghost btn-sm" onclick="saveAutopostLinks()"
+          data-tip="Сохранить все ссылки">💾 Сохранить</button>
+        <p style="font-size:11px;color:var(--text3);margin-top:10px">
+          Зрители получают ссылки командами <span style="color:var(--accent3)">!tg !tiktok !discord</span> и другими.
+          Включи/выключи каждую ссылку отдельно.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Интервал автопоста</div>
+        <div class="form-group">
+          <label class="form-label">Каждые N минут</label>
+          <input class="form-input" type="number" id="autopost_interval" value="15" min="5" max="120" style="width:120px"
+            title="Бот будет публиковать ссылки в чат с этим интервалом. Минимум 5 минут чтобы не спамить.">
+        </div>
+        <button class="btn btn-ghost btn-sm mt-8" onclick="testAutopost()"
+          data-tip="Отправить ссылки в чат прямо сейчас не дожидаясь интервала">▶ Тест (отправить сейчас)</button>
+      </div>
+    </div>
+
+    <!-- FEATURES TOGGLES -->
+    <div id="tab-features" class="tab-content">
+      <div class="tab-desc">
+        <div class="tab-desc-icon">⚙️</div>
+        <div>
+          <div class="tab-desc-title">Функции  -  включить / выключить</div>
+          <div class="tab-desc-text">
+            Включай только нужные функции  -  остальные бот будет игнорировать.
+            Изменения применяются мгновенно без перезапуска.
+            Модерация и события настраиваются детально на своих вкладках.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Основные функции</div>
+        <div class="features-grid">
+          <div class="feature-toggle" title="Начисление баллов за сообщения и просмотр. Без этого мини-игры не работают.">
+            <span class="feature-label"><span class="feature-icon">💰</span>Система баллов</span>
+            <label class="toggle"><input type="checkbox" id="feat_points" onchange="saveFeat('feat_points',this)"><span class="toggle-slider"></span></label>
+          </div>
+          
+          <div class="feature-toggle" title="Автоудаление ссылок, капса, спама и запрещённых слов">
+            <span class="feature-label"><span class="feature-icon">🛡</span>Модерация</span>
+            <label class="toggle"><input type="checkbox" id="feat_moderation" onchange="saveFeat('feat_moderation',this)"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="feature-toggle" title="Команда !clip для зрителей и кнопка в панели">
+            <span class="feature-label"><span class="feature-icon">🎬</span>Клипы</span>
+            <label class="toggle"><input type="checkbox" id="feat_clips" onchange="saveFeat('feat_clips',this)"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="feature-toggle" title="Автоматическая публикация ссылок на соцсети через интервал">
+            <span class="feature-label"><span class="feature-icon">📣</span>Автопост</span>
+            <label class="toggle"><input type="checkbox" id="feat_autopost" onchange="saveFeat('feat_autopost',this)"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="feature-toggle" title="Все команды зрителей: !uptime, !tg, !discord, !followage и т.д.">
+            <span class="feature-label"><span class="feature-icon">💬</span>Команды зрителей</span>
+            <label class="toggle"><input type="checkbox" id="feat_commands" onchange="saveFeat('feat_commands',this)"><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Игры и ивенты</div>
+        <div class="features-grid">
+          <div class="feature-toggle" title="Мод запускает !trivia, первый правильный ответ получает 200 баллов">
+            <span class="feature-label"><span class="feature-icon">🧠</span>Викторина</span>
+            <label class="toggle"><input type="checkbox" id="feat_trivia" onchange="saveFeat('feat_trivia',this)"><span class="toggle-slider"></span></label>
+          </div>
+          
+          
+          <div class="feature-toggle" title="!vip  -  зритель может купить VIP за 10 000 баллов">
+            <span class="feature-label"><span class="feature-icon">⭐</span>VIP покупка</span>
+            <label class="toggle"><input type="checkbox" id="feat_vip" onchange="saveFeat('feat_vip',this)"><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Прочие функции</div>
+        <div class="features-grid">
+          <div class="feature-toggle" title="Счётчик смертей: !death (мод) и !deaths (все)">
+            <span class="feature-label"><span class="feature-icon">💀</span>Счётчик смертей</span>
+            <label class="toggle"><input type="checkbox" id="feat_deaths" onchange="saveFeat('feat_deaths',this)"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="feature-toggle" title="Прогресс цели: !goal (все) и !setgoal N (мод)">
+            <span class="feature-label"><span class="feature-icon">🎯</span>Цели стрима</span>
+            <label class="toggle"><input type="checkbox" id="feat_goals" onchange="saveFeat('feat_goals',this)"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="feature-toggle" title="!followage  -  приближённые данные (полный API не подключён)">
+            <span class="feature-label"><span class="feature-icon">📅</span>Followage</span>
+            <label class="toggle"><input type="checkbox" id="feat_followage" onchange="saveFeat('feat_followage',this)"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="feature-toggle" title="Text-to-Speech  -  озвучивание сообщений (в разработке)">
+            <span class="feature-label"><span class="feature-icon">🔊</span>TTS сообщения</span>
+            <label class="toggle"><input type="checkbox" id="feat_tts" onchange="saveFeat('feat_tts',this)"><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="tab-settings" class="tab-content">
+      <div class="tab-desc">
+        <div class="tab-desc-icon">🔑</div>
+        <div>
+          <div class="tab-desc-title">Настройки подключения к Twitch</div>
+          <div class="tab-desc-text">
+            Здесь хранятся данные для подключения бота к IRC Twitch.
+            <b>Токен</b>  -  получи на <b>twitchtokengenerator.com</b> (залогинься под аккаунтом бота).
+            <b>Имя бота</b>  -  должно совпадать с аккаунтом от которого получен токен.
+            После сохранения бот переподключится автоматически через ~5 секунд.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Twitch подключение</div>
+        <div class="connection-bar">
+          <div class="status-dot" id="twitch-dot" style="background:var(--red)"></div>
+          <span id="twitch-status-text">Статус подключения к IRC</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Название канала (без #)</label>
+          <input class="form-input" id="twitch_channel" placeholder="yourchannel"
+            title="Канал Twitch к которому подключится бот. Например: shefdw">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Имя бота (ник аккаунта)</label>
+          <input class="form-input" id="bot_username" placeholder="mybotname"
+            title="Ник Twitch-аккаунта от которого был получен OAuth токен. Должен совпадать!">
+        </div>
+        <div class="form-group">
+          <label class="form-label">OAuth токен (oauth:xxxxx)</label>
+          <input class="form-input" id="twitch_token" type="password" placeholder="oauth:xxxxxxxxxxxxxxxx"
+            title="Получи на twitchtokengenerator.com. Должен начинаться с oauth:">
+        </div>
+        <button class="btn btn-primary mt-8" onclick="saveConnectionSettings()"
+          data-tip="Сохранить токен и данные канала. Бот переподключится автоматически.">💾 Сохранить и подключить</button>
+        <p style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.8">
+          🔑 Получить токен: <a href="https://twitchtokengenerator.com" target="_blank" style="color:var(--accent3)">twitchtokengenerator.com</a> → Bot Chat Token<br>
+          ⚠️ Залогинься под аккаунтом <b>бота</b>, а не основным аккаунтом
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">О боте</div>
+        <p style="font-size:12px;color:var(--text2);line-height:2">
+          🤖 Twitch Bot Panel v3.0<br>
+          ⚙️ Backend: Python + FastAPI + asyncio IRC<br>
+          💾 База данных: SQLite (bot_data.db)<br>
+          📁 Запуск: <span style="color:var(--accent3)">python main.py</span><br>
+          🌐 Панель: <span style="color:var(--accent3)">http://localhost:8000</span><br>
+          📖 Справочник: кнопка <span style="color:var(--accent3)">? ПОМОЩЬ</span> вверху
+        </p>
+      </div>
+    </div>
+
+    <!-- КАСТОМНЫЕ КОМАНДЫ -->
+    <div id="tab-commands" class="tab-content">
+      <div class="tab-desc">
+        <div class="tab-desc-icon">⌨️</div>
+        <div>
+          <div class="tab-desc-title">Кастомные команды</div>
+          <div class="tab-desc-text">
+            Создавай свои команды без правки кода. Зритель пишет <b>!название</b>  -  бот отвечает твоим текстом.
+            Доступны переменные: <b>{name}</b>  -  ник зрителя, <b>{game}</b>  -  текущая игра.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Добавить команду</div>
+        <div class="flex gap-8 mb-8 flex-wrap">
+          <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+            <span style="color:var(--accent3);font-size:14px;font-weight:700">!</span>
+            <input class="form-input" id="new-cmd-name" placeholder="название" style="width:140px"
+              title="Название команды без !  -  только латиница и цифры">
+          </div>
+          <input class="form-input" id="new-cmd-response" placeholder="Ответ бота... {name} {game}"
+            title="Текст который напишет бот. {name} = ник зрителя, {game} = текущая игра">
+          <button class="btn btn-primary btn-sm" onclick="addCustomCommand()"
+            data-tip="Добавить команду">+ Добавить</button>
+        </div>
+        <div id="cmd-result" style="font-size:11px;color:var(--text2)"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Список команд</div>
+        <table class="table" id="custom-cmds-table">
+          <thead><tr><th>!Команда</th><th>Ответ</th><th>Действие</th></tr></thead>
+          <tbody id="custom-cmds-body">
+            <tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px">Нет кастомных команд</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ОЧЕРЕДЬ РЕКВЕСТОВ -->
+    <div id="tab-songs" class="tab-content">
+      <div class="tab-desc">
+        <div class="tab-desc-icon">🎵</div>
+        <div>
+          <div class="tab-desc-title">Очередь реквестов</div>
+          <div class="tab-desc-text">
+            Зрители пишут <b>!sr [название песни]</b>  -  реквест попадает сюда.
+            Отмечай выполненные или удаляй нежелательные.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Текущая очередь</span>
+          <button class="btn btn-ghost btn-sm" onclick="loadSongs()"
+            data-tip="Обновить список">↻ Обновить</button>
+        </div>
+        <div id="songs-list">
+          <p style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Очередь пуста</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Текущая игра (для команды !game)</div>
+        <div class="flex gap-8">
+          <input class="form-input" id="current-game-input" placeholder="Название игры">
+          <button class="btn btn-primary btn-sm" onclick="saveCurrentGame()"
+            data-tip="Сохранить текущую игру  -  бот будет отвечать на !game">💾 Сохранить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIP ЗРИТЕЛИ -->
+    <div id="tab-vip" class="tab-content">
+      <div class="tab-desc">
+        <div class="tab-desc-icon">⭐</div>
+        <div>
+          <div class="tab-desc-title">VIP зрители</div>
+          <div class="tab-desc-text">
+            VIP зрители получают: <b>+50% баллов</b> за сообщения, <b>нет модерации</b> (ссылки, капс),
+            <b>кулдауны ×2 короче</b>, <b>золотой ⭐</b> в чате панели.
+            Зрители покупают VIP командой <b>!vip</b> (10 000 баллов, 24ч).
+            Ты можешь выдать VIP вручную ниже на любой срок.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Выдать VIP вручную</div>
+        <div class="flex gap-8 mb-8 flex-wrap">
+          <input class="form-input" id="vip-grant-user" placeholder="username" style="width:160px"
+            title="Ник зрителя (без @)">
+          <input class="form-input" id="vip-grant-hours" type="number" value="24" min="1" max="720" style="width:90px"
+            title="Количество часов VIP статуса">
+          <span style="line-height:34px;font-size:11px;color:var(--text2)">часов</span>
+          <button class="btn btn-primary btn-sm" onclick="grantVip()"
+            data-tip="Выдать VIP на указанное количество часов">⭐ Выдать VIP</button>
+          <button class="btn btn-danger btn-sm" onclick="revokeVip()"
+            data-tip="Забрать VIP у зрителя досрочно">✕ Забрать</button>
+        </div>
+        <div id="vip-result" style="font-size:11px;color:var(--text2)"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Настройки VIP бонусов</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Бонус баллов %</label>
+            <input class="form-input" type="number" id="vip_points_bonus" value="50" min="0" max="500"
+              title="На сколько % больше баллов получает VIP за сообщения. 50 = +50%">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Кулдауны короче (во сколько раз)</label>
+            <input class="form-input" type="number" id="vip_cd_multiplier" value="2" min="1" max="10"
+              title="Во сколько раз короче кулдауны у VIP. 2 = вдвое короче">
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveVipSettings()"
+          data-tip="Сохранить настройки VIP бонусов">💾 Сохранить</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Активные VIP зрители</div>
+        <div id="vip-list">
+          <p style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Загрузка...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- OBS ОВЕРЛЕИ -->
+    <div id="tab-obs" class="tab-content">
+      <div class="tab-desc">
+        <div class="tab-desc-icon">🎬</div>
+        <div>
+          <div class="tab-desc-title">OBS Оверлеи</div>
+          <div class="tab-desc-text">
+            Добавляй URL как <b>Browser Source</b> в OBS. Размер: <b>1920×1080</b>,
+            включи <b>Transparent background</b>. Данные обновляются в реальном времени через WebSocket.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Готовые оверлеи</div>
+        <div id="overlay-list" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Редактор оверлеев (drag-and-drop)</div>
+        <p style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:12px">
+          Полноценный редактор с 16 виджетами: чат, алерты, счётчик смертей, цель, текст, картинки и многое другое.
+          Позиционируй перетаскиванием, настраивай шрифт, цвет, эффекты.
+        </p>
+        <a href="/editor" target="_blank" class="btn btn-primary"
+          data-tip="Открыть редактор оверлеев в новой вкладке">🎨 Открыть редактор</a>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Как добавить в OBS</div>
+        <ol style="font-size:12px;color:var(--text2);line-height:2.2;padding-left:20px">
+          <li>В OBS: <b style="color:var(--accent3)">Источники → + → Browser</b></li>
+          <li>Вставь URL из таблицы выше</li>
+          <li>Ширина: <b style="color:var(--accent3)">1920</b>, Высота: <b style="color:var(--accent3)">1080</b></li>
+          <li>Включи <b style="color:var(--accent3)">Shutdown source when not visible</b>  -  выключить</li>
+          <li>Включи <b style="color:var(--accent3)">Refresh browser when scene becomes active</b>  -  включить</li>
+        </ol>
+      </div>
+    </div>
+
+
+    <!-- ВИКТОРИНА -->
+    <div id="tab-trivia" class="tab-content">
+      <div class="tab-desc">
+        <div class="tab-desc-icon">🧠</div>
+        <div>
+          <div class="tab-desc-title">Викторина</div>
+          <div class="tab-desc-text">
+            Мод запускает викторину командой <b>!trivia</b> в чате.
+            Первый правильный ответ получает баллы. Добавь свои вопросы ниже
+            или используй встроенные. Все данные сохраняются.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Настройки викторины</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Награда за правильный ответ (баллов)</label>
+            <input class="form-input" type="number" id="trivia_reward" value="200" min="1" max="10000"
+              title="Сколько баллов получает победитель">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Таймер (секунд, 0 = без таймера)</label>
+            <input class="form-input" type="number" id="trivia_timeout" value="60" min="0" max="600"
+              title="Через сколько секунд викторина закрывается если никто не ответил. 0 = бессрочно">
+          </div>
+        </div>
+        <div class="flex gap-8">
+          <button class="btn btn-primary btn-sm" onclick="saveTriviaSettings()"
+            data-tip="Сохранить настройки викторины">💾 Сохранить</button>
+          <button class="btn btn-success btn-sm" onclick="startTriviaNow()"
+            data-tip="Запустить викторину прямо сейчас">▶ Запустить сейчас</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Свои вопросы</span>
+          <button class="btn btn-primary btn-sm" onclick="addTriviaQuestion()"
+            data-tip="Добавить вопрос">+ Добавить вопрос</button>
+        </div>
+        <p style="font-size:11px;color:var(--text3);margin-bottom:12px">
+          Если список пустой  -  используются встроенные вопросы. Ответы не чувствительны к регистру.
+        </p>
+        <div id="trivia-questions-list" style="display:flex;flex-direction:column;gap:8px"></div>
+        <button class="btn btn-ghost btn-sm mt-8" onclick="saveTriviaQuestions()"
+          data-tip="Сохранить все вопросы">💾 Сохранить вопросы</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Команда !trivia</div>
+        <p style="font-size:12px;color:var(--text2);line-height:2">
+          Только модераторы могут запускать викторину.<br>
+          Написать в чат: <span style="color:var(--accent3)">!trivia</span><br>
+          Зрители отвечают в чат обычным сообщением.<br>
+          Первый правильный ответ получает баллы.
+        </p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- CHAT PANEL -->
+  <aside class="chat-panel">
+    <div class="chat-header">
+      <span>💬 ЧАТ</span>
+      <span id="chat-count" style="color:var(--text3);font-size:10px">0 сообщений</span>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="chat-input-area">
+      <input class="chat-input" id="chat-send-input" placeholder="Сообщение от бота..."
+        title="Бот напишет это сообщение в Twitch-чат" onkeydown="if(event.key==='Enter')broadcastMsg()">
+      <button class="btn btn-primary btn-sm" onclick="broadcastMsg()"
+        data-tip="Отправить сообщение в чат от имени бота">▶</button>
+    </div>
+  </aside>
+</div>
+
+<!-- MOBILE CHAT OVERLAY -->
+<div class="chat-overlay" id="chatOverlay" onclick="toggleChat()"></div>
+<div class="chat-panel-mobile" id="chatMobile">
+  <div class="chat-header" style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+    <span style="font-family:'Unbounded',sans-serif;font-size:11px;letter-spacing:.12em;color:var(--text2)">💬 ЧАТ</span>
+    <span onclick="toggleChat()" style="cursor:pointer;color:var(--text3);font-size:18px">✕</span>
+  </div>
+  <div class="chat-messages" id="chat-messages-mobile"></div>
+  <div class="chat-input-area" style="padding:12px;border-top:1px solid var(--border);display:flex;gap:8px">
+    <input class="chat-input" id="chat-send-mobile" placeholder="Сообщение от бота..." style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-family:'Space Mono',monospace;font-size:12px;outline:none">
+    <button class="btn btn-primary btn-sm" onclick="broadcastMsgMobile()">▶</button>
+  </div>
+</div>
+<div class="notifications" id="notifications"></div>
+<div id="global-tip"></div>
+
+<script>
+// ─── Config ───────────────────────────────────────────────────────────────────
+var CHAT_MAX_DOM   = 75;
+var CHAT_BATCH_MS  = 150;
+var WS_THROTTLE_MS = 80;
+var SYSLOG_MAX     = 80;
+var LOW_PERF_MODE  = false;
+
+// ─── State ────────────────────────────────────────────────────────────────────
+var ws, settings = {}, chatCount = 0, clipCount = 0, reconnectTimer;
+var chatQueue = [], chatFlushTimer = null;
+var lastWsProcess = 0, wsQueue = [], wsFlushTimer = null;
+var eventTimes = {}, EVENT_COOLDOWN = 500;
+var uptimeInterval = null, streamStartTs = null;
+var sysLogLines = 0;
+
+// ─── Help Modal ───────────────────────────────────────────────────────────────
+function openHelp() {
+  document.getElementById('helpModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeHelp() {
+  document.getElementById('helpModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function(e) { if(e.key === 'Escape') closeHelp(); });
+
+// ─── WebSocket ────────────────────────────────────────────────────────────────
+function connectWS() {
+  ws = new WebSocket('ws://' + location.host + '/ws');
+  ws.onopen = function() {
+    document.getElementById('wsDot').style.cssText = 'background:var(--green);box-shadow:0 0 12px var(--green)';
+    document.getElementById('wsStatus').textContent = 'ПОДКЛЮЧЕНО';
+    clearTimeout(reconnectTimer);
+  };
+  ws.onclose = function() {
+    document.getElementById('wsDot').style.cssText = 'background:var(--red);box-shadow:0 0 8px var(--red)';
+    document.getElementById('wsStatus').textContent = 'ОТКЛЮЧЕНО';
+    reconnectTimer = setTimeout(connectWS, 3000);
+  };
+  ws.onerror = function() { document.getElementById('wsStatus').textContent = 'ОШИБКА'; };
+  ws.onmessage = function(e) {
+    var now = Date.now();
+    try { wsQueue.push(JSON.parse(e.data)); } catch(err) { return; }
+    if (now - lastWsProcess < WS_THROTTLE_MS) {
+      if (!wsFlushTimer) wsFlushTimer = setTimeout(flushWsQueue, WS_THROTTLE_MS);
+      return;
+    }
+    flushWsQueue();
+  };
+}
+
+function flushWsQueue() {
+  wsFlushTimer = null; lastWsProcess = Date.now();
+  var msgs = wsQueue.slice(); wsQueue = [];
+  if (LOW_PERF_MODE) {
+    var chatMsgs = msgs.filter(function(m){return m.event==='chat_message';});
+    var others = msgs.filter(function(m){return m.event!=='chat_message';});
+    msgs = others.concat(chatMsgs.slice(-5));
+  }
+  msgs.forEach(function(msg){ handleEvent(msg); });
+}
+
+function handleEvent(msg) {
+  switch(msg.event) {
+    case 'init':
+      settings = msg.settings || {};
+      applySettings(settings);
+      if (msg.history && msg.history.length) {
+        msg.history.forEach(function(m) {
+          chatQueue.push({username:m.username,message:m.message,isMod:m.is_mod,isSub:m.is_sub,isBot:false});
+        });
+        flushChatQueue();
+      }
+      // Обновляем статус IRC
+      updateTwitchStatus(msg.twitch_connected);
+      break;
+    case 'chat_message':
+      chatCount++;
+      var cc=document.getElementById('chat-count'); var sc=document.getElementById('stat-chatcount');
+      if(cc) cc.textContent=chatCount+' сообщений';
+      if(sc) sc.textContent=chatCount;
+      chatQueue.push({username:msg.username,message:msg.message,isMod:msg.is_mod,isSub:msg.is_sub,isBot:false});
+      scheduleChatFlush();
+      break;
+    case 'bot_message':
+      chatQueue.push({username:'🤖 BOT',message:msg.message,isMod:false,isSub:false,isBot:true});
+      scheduleChatFlush();
+      break;
+    case 'moderation_action':
+      if(throttleEvent('mod')){ sysLog('🛡 '+msg.username+': '+msg.reason); notify('🛡 Мод: '+msg.username); }
+      break;
+    case 'clip_created':
+      clipCount++;
+      var sc2=document.getElementById('stat-clips'); if(sc2) sc2.textContent=clipCount;
+      sysLog('🎬 Клип: '+msg.label); notify('🎬 '+msg.label);
+      break;
+    case 'stream_started':
+      document.getElementById('streamDot').classList.add('live');
+      document.getElementById('streamStatus').textContent='СТРИМ LIVE';
+      streamStartTs=msg.ts*1000; startUptimeTicker();
+      notify('▶️ Стрим начат!');
+      break;
+    case 'stream_stopped':
+      document.getElementById('streamDot').classList.remove('live');
+      document.getElementById('streamStatus').textContent='СТРИМ ОФЛАЙН';
+      streamStartTs=null; stopUptimeTicker();
+      break;
+    case 'death_updated':
+      var d1=document.getElementById('stat-deaths'); var d2=document.getElementById('death-count-big');
+      if(d1) d1.textContent=msg.count; if(d2) d2.textContent=msg.count;
+      break;
+    case 'goal_updated':
+      updateGoalDisplay(msg.current, parseInt(settings.goal_target||100), settings.goal_label||'Цель');
+      break;
+    case 'twitch_connected':
+      updateTwitchStatus(true);
+      sysLog('✅ Twitch IRC подключён: #'+msg.channel);
+      notify('✅ Бот подключён к Twitch!');
+      break;
+    case 'twitch_disconnected':
+      updateTwitchStatus(false);
+      sysLog('❌ Twitch IRC отключён');
+      break;
+    case 'timeout_user': if(throttleEvent('timeout')) notify('🔇 Тайм-аут: '+msg.username); break;
+    case 'ban_user': notify('🔨 Бан: '+msg.username); break;
+    case 'event_follow': sysLog('❤️ Follow: '+msg.username); notify('❤️ Фоллоу: '+msg.username); break;
+    case 'event_sub': sysLog('🎉 Sub: '+msg.username); notify('🎉 Саб: '+msg.username); break;
+    case 'event_giftsub': sysLog('🎁 Gift: '+msg.gifter+' ×'+msg.count); notify('🎁 Gift: '+msg.gifter); break;
+    case 'event_raid': sysLog('🚨 Raid: '+msg.raider+' ×'+msg.viewers); notify('🚨 РЕЙД: '+msg.raider); break;
+    case 'event_bits': sysLog('💎 Bits: '+msg.username+' ×'+msg.amount); notify('💎 Bits: '+msg.username); break;
+    case 'event_milestone': sysLog('🏆 Milestone: '+msg.count); notify('🏆 '+msg.count+' фолловеров!'); break;
+    case 'event_firstmsg': sysLog('👋 Первое: '+msg.username); break;
+    case 'event_return': sysLog('🎊 Вернулся: '+msg.username); break;
+  }
+}
+
+function updateTwitchStatus(connected) {
+  var dot = document.getElementById('twitch-dot');
+  var txt = document.getElementById('twitch-status-text');
+  if (!dot) return;
+  if (connected) {
+    dot.style.cssText = 'background:var(--green);box-shadow:0 0 12px var(--green)';
+    if (txt) txt.textContent = 'Подключён к Twitch IRC ✅';
+  } else {
+    dot.style.cssText = 'background:var(--red);box-shadow:0 0 8px var(--red)';
+    if (txt) txt.textContent = 'Не подключён к Twitch IRC';
+  }
+}
+
+function throttleEvent(type) {
+  var now=Date.now();
+  if(now-(eventTimes[type]||0)<EVENT_COOLDOWN) return false;
+  eventTimes[type]=now; return true;
+}
+
+// ─── Chat batching ────────────────────────────────────────────────────────────
+function scheduleChatFlush() { if(!chatFlushTimer) chatFlushTimer=setTimeout(flushChatQueue,CHAT_BATCH_MS); }
+
+function flushChatQueue() {
+  chatFlushTimer=null;
+  if(!chatQueue.length) return;
+  var msgs=chatQueue.slice(); chatQueue=[];
+  var el=document.getElementById('chat-messages');
+  var elM=document.getElementById('chat-messages-mobile');
+  if(!el) return;
+  var frag=document.createDocumentFragment();
+  var fragM=elM?document.createDocumentFragment():null;
+  msgs.forEach(function(m){ frag.appendChild(makeChatNode(m)); if(fragM) fragM.appendChild(makeChatNode(m)); });
+  el.appendChild(frag);
+  if(elM&&fragM) elM.appendChild(fragM);
+  while(el.children.length>CHAT_MAX_DOM) el.removeChild(el.firstChild);
+  if(elM) while(elM.children.length>CHAT_MAX_DOM) elM.removeChild(elM.firstChild);
+  var atBottom=el.scrollHeight-el.scrollTop-el.clientHeight<60;
+  if(atBottom) el.scrollTop=el.scrollHeight;
+  if(elM){var atBottomM=elM.scrollHeight-elM.scrollTop-elM.clientHeight<60; if(atBottomM) elM.scrollTop=elM.scrollHeight;}
+}
+
+function makeChatNode(m) {
+  var div=document.createElement('div');
+  div.className=m.isBot?'chat-msg bot-msg':'chat-msg';
+  var userClass=m.isBot?'bot-user':(m.isMod?'mod-user':(m.isSub?'sub-user':''));
+  var userSpan=document.createElement('span');
+  userSpan.className='msg-user '+userClass;
+  userSpan.textContent=m.username+(m.isMod&&!m.isBot?'🔧':'');
+  var textSpan=document.createElement('span');
+  textSpan.className='msg-text';
+  textSpan.textContent=' '+m.message;
+  div.appendChild(userSpan); div.appendChild(textSpan);
+  return div;
+}
+
+function escHtml(s) { var d=document.createElement('div'); d.textContent=String(s); return d.innerHTML; }
+
+// ─── Uptime ticker ────────────────────────────────────────────────────────────
+function startUptimeTicker() {
+  stopUptimeTicker();
+  uptimeInterval=setInterval(function(){
+    if(!streamStartTs) return;
+    var elapsed=Math.floor((Date.now()-streamStartTs)/1000);
+    var h=Math.floor(elapsed/3600); var m=Math.floor((elapsed%3600)/60);
+    var el=document.getElementById('stat-uptime'); if(el) el.textContent=h+'ч '+m+'м';
+  },60000);
+}
+function stopUptimeTicker() { if(uptimeInterval){clearInterval(uptimeInterval);uptimeInterval=null;} }
+
+// ─── sysLog ───────────────────────────────────────────────────────────────────
+function sysLog(text) {
+  var el=document.getElementById('sys-log'); if(!el) return;
+  while(sysLogLines>=SYSLOG_MAX&&el.firstChild){el.removeChild(el.firstChild);sysLogLines--;}
+  var line=document.createElement('div');
+  var now=new Date();
+  var t=('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2)+':'+('0'+now.getSeconds()).slice(-2);
+  line.innerHTML='<span style="color:var(--text3)">['+t+']</span> '+escHtml(text);
+  el.appendChild(line); sysLogLines++; el.scrollTop=el.scrollHeight;
+}
+
+// ─── Low perf ─────────────────────────────────────────────────────────────────
+function setLowPerfMode(on) {
+  LOW_PERF_MODE=on;
+  if(on){CHAT_BATCH_MS=500;WS_THROTTLE_MS=300;CHAT_MAX_DOM=30;document.body.classList.add('low-perf');}
+  else{CHAT_BATCH_MS=150;WS_THROTTLE_MS=80;CHAT_MAX_DOM=75;document.body.classList.remove('low-perf');}
+  saveSetting('low_perf_mode',on?'1':'0');
+  notify(on?'⚡ Режим низкой нагрузки ВКЛЮЧЁН':'✅ Обычный режим');
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+function applySettings(s) {
+  ['twitch_channel','twitch_token','bot_username','tg_link','tiktok_link','discord_link','youtube_link',
+   'points_per_message','points_per_minute','autopost_interval','clip_duration',
+   'caps_threshold','spam_threshold','banned_words','goal_label','goal_current','goal_target',
+   'msg_follow','msg_sub','msg_resub','msg_giftsub','msg_raid','msg_bits',
+   'msg_firstmsg','msg_return','msg_stream_hello','msg_stream_bye','msg_milestone',
+   'milestones','return_days','event_delay','follower_count'].forEach(function(k){
+    var el=document.getElementById(k); if(el&&s[k]!==undefined) el.value=s[k];
+  });
+  ['feat_points','feat_minigames','feat_moderation','feat_clips','feat_autopost','feat_commands',
+   'feat_trivia','feat_roulette','feat_heist','feat_vip','feat_deaths','feat_goals','feat_followage','feat_tts',
+   'feat_events','mod_links','mod_caps','mod_spam','mod_repeat',
+   'evt_follow','evt_sub','evt_giftsub','evt_raid','evt_bits',
+   'evt_firstmsg','evt_return','evt_milestone','evt_stream_hello','evt_stream_bye'].forEach(function(k){
+    var el=document.getElementById(k); if(el&&s[k]!==undefined) el.checked=s[k]==='1';
+  });
+  var cur=parseInt(s.goal_current||0); var tgt=parseInt(s.goal_target||100); var lbl=s.goal_label||'Цель';
+  updateGoalDisplay(cur,tgt,lbl);
+  var dc=parseInt(s.death_count||0);
+  document.getElementById('stat-deaths').textContent=dc;
+  document.getElementById('death-count-big').textContent=dc;
+  syncVipCostDisplay(s);
+}
+
+function updateGoalDisplay(cur,tgt,lbl) {
+  var pct=tgt?Math.min(100,Math.round(cur/tgt*100)):0;
+  ['goal-label-display','goal-preview-label'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=lbl+': '+cur+'/'+tgt;});
+  ['goal-progress','goal-preview-bar'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.width=pct+'%';});
+  document.getElementById('goal-current-display').textContent=cur;
+  document.getElementById('goal-pct-display').textContent=pct+'%';
+  document.getElementById('goal-target-display').textContent=tgt;
+  document.getElementById('goal-preview-cur').textContent=cur;
+  document.getElementById('goal-preview-pct').textContent=pct+'%';
+  document.getElementById('goal-preview-tgt').textContent=tgt;
+}
+
+async function saveSetting(key,value) {
+  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings:{[key]:value}})});
+  settings[key]=value;
+}
+function saveFeat(key,checkbox) {
+  saveSetting(key,checkbox.checked?'1':'0');
+  sysLog((checkbox.checked?'✅ Включено: ':'❌ Выключено: ')+key);
+}
+async function saveAllSettings() {
+  var s={};
+  ['twitch_channel','twitch_token','bot_username','tg_link','tiktok_link','discord_link','youtube_link',
+   'points_per_message','points_per_minute','autopost_interval','clip_duration',
+   'caps_threshold','spam_threshold','banned_words','goal_label','goal_current','goal_target'].forEach(function(k){
+    var el=document.getElementById(k); if(el) s[k]=el.value;
+  });
+  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings:s})});
+  notify('💾 Настройки сохранены!'); sysLog('💾 Все настройки сохранены');
+}
+async function saveLinks() { await saveAllSettings(); }
+async function saveConnectionSettings() { await saveAllSettings(); }
+async function saveModerationSettings() { await saveAllSettings(); }
+
+// ─── Stream ───────────────────────────────────────────────────────────────────
+async function startStream() { await fetch('/api/stream/start',{method:'POST'}); loadStats(); }
+async function stopStream() { await fetch('/api/stream/stop',{method:'POST'}); }
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+async function loadStats() {
+  var r=await fetch('/api/stats'); var data=await r.json();
+  document.getElementById('stat-uptime').textContent=data.uptime||' - ';
+  document.getElementById('stat-chatcount').textContent=data.stream_chat_count||0;
+  document.getElementById('stat-deaths').textContent=data.death_count;
+  document.getElementById('death-count-big').textContent=data.death_count;
+  var tbody=document.getElementById('top-points-body');
+  var lb=document.getElementById('leaderboard-body');
+  if(data.top_points.length){
+    var rows=data.top_points.map(function(r,i){return '<tr><td class="rank">#'+(i+1)+'</td><td>'+escHtml(r.username)+'</td><td class="pts">'+r.points+'</td></tr>';}).join('');
+    tbody.innerHTML=rows; lb.innerHTML=rows;
+  }
+  clipCount=data.clips.length; document.getElementById('stat-clips').textContent=clipCount;
+  updateGoalDisplay(data.goal_current,data.goal_target,data.goal_label);
+  if(data.stream_active){document.getElementById('streamDot').classList.add('live');document.getElementById('streamStatus').textContent='СТРИМ LIVE';}
+  updateTwitchStatus(data.twitch_connected);
+  refreshClips(data.clips);
+}
+
+function refreshClips(clips) {
+  var el=document.getElementById('clips-list');
+  if(!clips||!clips.length){el.innerHTML='<p style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Нет клипов</p>';return;}
+  el.innerHTML=clips.map(function(c){
+    var d=new Date(c.ts*1000); var time=d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+    return '<div class="clip-item"><div><div class="clip-label">🎬 '+escHtml(c.label)+'</div><div class="clip-meta">'+time+' · '+c.duration+' мин</div></div></div>';
+  }).join('');
+}
+
+// ─── Actions ──────────────────────────────────────────────────────────────────
+async function testChat() {
+  var user=document.getElementById('test-user').value||'viewer1';
+  var msg=document.getElementById('test-msg').value;
+  var isMod=document.getElementById('test-mod').checked;
+  if(!msg) return;
+  await fetch('/api/chat/simulate?username='+encodeURIComponent(user)+'&message='+encodeURIComponent(msg)+'&is_mod='+isMod,{method:'POST'});
+  document.getElementById('test-msg').value='';
+}
+async function broadcastMsg() {
+  var inp=document.getElementById('broadcast-msg');if(!inp||!inp.value.trim())inp=document.getElementById('chat-send-input');
+  var msg=inp.value.trim(); if(!msg) return;
+  await fetch('/api/chat/broadcast?message='+encodeURIComponent(msg),{method:'POST'});
+  inp.value='';
+}
+async function createClip() {
+  var label=document.getElementById('clip-label').value||'Ручной клип';
+  await fetch('/api/clip?label='+encodeURIComponent(label),{method:'POST'});
+  document.getElementById('clip-label').value='';
+}
+async function incrementDeath() {
+  var r=await fetch('/api/death',{method:'POST'}); var data=await r.json();
+  document.getElementById('stat-deaths').textContent=data.count;
+  document.getElementById('death-count-big').textContent=data.count;
+}
+async function resetDeath() {
+  await fetch('/api/death/reset',{method:'POST'});
+  document.getElementById('stat-deaths').textContent=0;
+  document.getElementById('death-count-big').textContent=0;
+  notify('💀 Счётчик смертей сброшен');
+}
+async function incrementGoal() {
+  var inc=parseInt(document.getElementById('goal-inc').value)||1;
+  var cur=parseInt(settings.goal_current||0)+inc;
+  var tgt=parseInt(settings.goal_target||100); var lbl=settings.goal_label||'Цель';
+  await fetch('/api/goal?current='+cur+'&target='+tgt+'&label='+encodeURIComponent(lbl),{method:'POST'});
+  settings.goal_current=String(cur); updateGoalDisplay(cur,tgt,lbl);
+}
+async function updateGoal() {
+  var cur=parseInt(document.getElementById('goal_current').value)||0;
+  var tgt=parseInt(document.getElementById('goal_target').value)||100;
+  var lbl=document.getElementById('goal_label').value||'Цель';
+  await fetch('/api/goal?current='+cur+'&target='+tgt+'&label='+encodeURIComponent(lbl),{method:'POST'});
+  settings.goal_current=String(cur); settings.goal_target=String(tgt); settings.goal_label=lbl;
+  updateGoalDisplay(cur,tgt,lbl); notify('🎯 Цель обновлена!');
+}
+async function managePoints(action) {
+  var user=document.getElementById('pts-username').value;
+  var amount=parseInt(document.getElementById('pts-amount').value)||0;
+  if(!user||!amount) return;
+  var sign=action==='remove'?-1:1;
+  var r=await fetch('/api/points/'+encodeURIComponent(user)+'/add?amount='+(sign*amount),{method:'POST'});
+  var data=await r.json();
+  document.getElementById('pts-result').textContent='✅ '+user+': '+data.points+' баллов';
+  loadStats();
+}
+async function clearWarnings() {
+  var user=document.getElementById('warn-username').value; if(!user) return;
+  await fetch('/api/warnings/'+encodeURIComponent(user),{method:'DELETE'});
+  document.getElementById('warn-result').textContent='✅ Варны '+user+' сброшены';
+}
+async function testAutopost() {
+  var links=[];
+  if(document.getElementById('tg_link').value) links.push('📱 TG: '+document.getElementById('tg_link').value);
+  if(document.getElementById('tiktok_link').value) links.push('🎵 TikTok: '+document.getElementById('tiktok_link').value);
+  if(document.getElementById('discord_link').value) links.push('💬 Discord: '+document.getElementById('discord_link').value);
+  if(document.getElementById('youtube_link').value) links.push('▶️ YouTube: '+document.getElementById('youtube_link').value);
+  if(links.length){
+    var msg='🔗 Наши соцсети: '+links.join(' | ');
+    await fetch('/api/chat/broadcast?message='+encodeURIComponent(msg),{method:'POST'});
+    notify('📣 Автопост отправлен!');
+  } else { notify('⚠️ Нет заполненных ссылок'); }
+}
+
+// ─── Events ───────────────────────────────────────────────────────────────────
+async function saveEventMsg(key) {
+  var el=document.getElementById(key); if(!el) return;
+  await saveSetting(key,el.value); notify('💾 Сохранено!');
+}
+async function saveEventMsgs(keys) {
+  var s={};
+  keys.forEach(function(k){var el=document.getElementById(k);if(el) s[k]=el.value;});
+  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings:s})});
+  notify('💾 Сохранено!');
+}
+async function testEvent(type,username,extra) {
+  extra=extra||{}; var u=username||'TestUser'; var url;
+  if(type==='follow') url='/api/event/follow?username='+encodeURIComponent(u);
+  else if(type==='sub') url='/api/event/sub?username='+encodeURIComponent(u)+'&months='+(extra.months||1)+'&resub='+(extra.resub||false);
+  else if(type==='giftsub') url='/api/event/giftsub?gifter='+encodeURIComponent(u)+'&count='+(extra.count||3);
+  else if(type==='raid') url='/api/event/raid?raider='+encodeURIComponent(u)+'&viewers='+(extra.viewers||10);
+  else if(type==='bits') url='/api/event/bits?username='+encodeURIComponent(u)+'&amount='+(extra.amount||100);
+  else if(type==='milestone') url='/api/event/milestone?count='+(extra.count||1000);
+  else if(type==='firstmsg'||type==='return') url='/api/chat/simulate?username='+encodeURIComponent(u)+'&message='+encodeURIComponent('Привет всем!');
+  if(url){await fetch(url,{method:'POST'}); notify('▶ Тест: '+type);}
+}
+async function testBotMsg(text) {
+  if(!text) return;
+  await fetch('/api/chat/broadcast?message='+encodeURIComponent(text),{method:'POST'});
+}
+
+// ─── UI ───────────────────────────────────────────────────────────────────────
+function showTab(name,el) {
+  document.querySelectorAll('.tab-content').forEach(function(t){t.classList.remove('active');});
+  document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
+  document.getElementById('tab-'+name).classList.add('active');
+  if(el) el.classList.add('active');
+  if(name==='dashboard'||name==='points'||name==='clips') loadStats();
+  if(window.innerWidth<=900) document.querySelector('.sidebar').classList.remove('open');
+}
+function notify(text) {
+  var el=document.createElement('div'); el.className='notif'; el.textContent=text;
+  document.getElementById('notifications').appendChild(el);
+  setTimeout(function(){el.remove();},3200);
+}
+function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('open'); }
+function toggleChat() {
+  document.getElementById('chatOverlay').classList.toggle('open');
+  document.getElementById('chatMobile').classList.toggle('open');
+}
+function toggleLowPerf() {
+  setLowPerfMode(!LOW_PERF_MODE);
+  var btn=document.getElementById('lowPerfBtn');
+  if(btn) btn.style.color=LOW_PERF_MODE?'var(--yellow)':'';
+}
+async function broadcastMsgMobile() {
+  var inp=document.getElementById('chat-send-mobile'); var msg=inp.value.trim(); if(!msg) return;
+  await fetch('/api/chat/broadcast?message='+encodeURIComponent(msg),{method:'POST'});
+  inp.value='';
+}
+
+// ─── Global Tooltip ───────────────────────────────────────────────────────────
+(function() {
+  var tip = document.getElementById('global-tip');
+  var current = null;
+  var showTimer = null;
+
+  document.addEventListener('mouseover', function(e) {
+    var el = e.target.closest('[data-tip]');
+    if (!el || el === current) return;
+    current = el;
+    clearTimeout(showTimer);
+    showTimer = setTimeout(function() {
+      tip.textContent = el.getAttribute('data-tip');
+      tip.style.display = 'block';
+      requestAnimationFrame(function() { tip.style.opacity = '1'; });
+    }, 300);
+  });
+
+  document.addEventListener('mouseout', function(e) {
+    var el = e.target.closest('[data-tip]');
+    if (!el) return;
+    var to = e.relatedTarget;
+    if (to && el.contains(to)) return;
+    current = null;
+    clearTimeout(showTimer);
+    tip.style.opacity = '0';
+    setTimeout(function() { if (tip.style.opacity === '0') tip.style.display = 'none'; }, 150);
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!current) return;
+    var x = e.clientX;
+    var y = e.clientY;
+    var tw = tip.offsetWidth;
+    var th = tip.offsetHeight;
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+
+    // По умолчанию  -  над курсором
+    var left = x - tw / 2;
+    var top  = y - th - 12;
+
+    // Не уходить за правый край
+    if (left + tw > vw - 8) left = vw - tw - 8;
+    // Не уходить за левый край
+    if (left < 8) left = 8;
+    // Если не влезает сверху  -  показать снизу
+    if (top < 8) top = y + 16;
+    // Не уходить за нижний край
+    if (top + th > vh - 8) top = y - th - 12;
+
+    tip.style.left = left + 'px';
+    tip.style.top  = top  + 'px';
+  });
+})();
+
+// ─── Custom Commands ──────────────────────────────────────────────────────────
+async function loadCustomCommands() {
+  try {
+    var r = await fetch('/api/custom_commands');
+    var data = await r.json();
+    var tbody = document.getElementById('custom-cmds-body');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px">Нет кастомных команд</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(function(c) {
+      return '<tr><td style="color:var(--accent3);font-weight:700">!' + escHtml(c.cmd) + '</td>' +
+             '<td style="color:var(--text2)">' + escHtml(c.response) + '</td>' +
+             '<td><button class="btn btn-danger btn-sm" onclick="deleteCustomCommand(\'' + escHtml(c.cmd) + '\')">✕</button></td></tr>';
+    }).join('');
+  } catch(e) { console.error('loadCustomCommands', e); }
+}
+
+async function addCustomCommand() {
+  var name = document.getElementById('new-cmd-name').value.trim().toLowerCase().replace(/[^a-z0-9_]/g,'');
+  var resp = document.getElementById('new-cmd-response').value.trim();
+  var result = document.getElementById('cmd-result');
+  if (!name) { result.textContent = '❌ Введи название команды (латиница)'; result.style.color = 'var(--red)'; return; }
+  if (!resp)  { result.textContent = '❌ Введи текст ответа'; result.style.color = 'var(--red)'; return; }
+  await fetch('/api/custom_commands?cmd=' + encodeURIComponent(name) + '&response=' + encodeURIComponent(resp), {method:'POST'});
+  document.getElementById('new-cmd-name').value = '';
+  document.getElementById('new-cmd-response').value = '';
+  result.textContent = '✅ Команда !' + name + ' добавлена';
+  result.style.color = 'var(--green)';
+  loadCustomCommands();
+}
+
+async function deleteCustomCommand(cmd) {
+  await fetch('/api/custom_commands/' + encodeURIComponent(cmd), {method:'DELETE'});
+  loadCustomCommands();
+}
+
+// ─── Song Queue ───────────────────────────────────────────────────────────────
+async function loadSongs() {
+  try {
+    var r = await fetch('/api/songs');
+    var data = await r.json();
+    var el = document.getElementById('songs-list');
+    if (!data.length) {
+      el.innerHTML = '<p style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Очередь пуста</p>';
+      return;
+    }
+    el.innerHTML = data.map(function(s, i) {
+      var d = new Date(s.ts * 1000);
+      var t = ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+      return '<div class="clip-item">' +
+        '<div style="display:flex;align-items:center;gap:10px;flex:1">' +
+        '<span style="color:var(--accent3);font-weight:700;font-size:12px">#' + (i+1) + '</span>' +
+        '<div><div class="clip-label">🎵 ' + escHtml(s.song) + '</div>' +
+        '<div class="clip-meta">от ' + escHtml(s.username) + ' · ' + t + '</div></div></div>' +
+        '<div style="display:flex;gap:6px">' +
+        '<button class="btn btn-success btn-sm" onclick="markSongDone(' + s.id + ')" data-tip="Отметить как сыгранное">✓</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteSong(' + s.id + ')" data-tip="Удалить из очереди">✕</button></div>' +
+        '</div>';
+    }).join('');
+  } catch(e) { console.error('loadSongs', e); }
+}
+
+async function markSongDone(id) {
+  await fetch('/api/songs/' + id + '/done', {method:'POST'});
+  loadSongs();
+  notify('✅ Реквест выполнен');
+}
+
+async function deleteSong(id) {
+  await fetch('/api/songs/' + id, {method:'DELETE'});
+  loadSongs();
+}
+
+async function saveCurrentGame() {
+  var game = document.getElementById('current-game-input').value.trim();
+  if (!game) return;
+  await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({settings:{current_game: game}})});
+  notify('🎮 Игра сохранена: ' + game);
+}
+
+// ─── VIP Management ───────────────────────────────────────────────────────────
+async function grantVip() {
+  var user = document.getElementById('vip-grant-user').value.trim();
+  var hours = parseInt(document.getElementById('vip-grant-hours').value) || 24;
+  if (!user) return;
+  await fetch('/api/vip/' + encodeURIComponent(user) + '/grant?hours=' + hours, {method:'POST'});
+  document.getElementById('vip-result').textContent = '✅ VIP выдан: ' + user + ' на ' + hours + 'ч';
+  loadVipList();
+  notify('⭐ VIP выдан: ' + user);
+}
+
+async function revokeVip() {
+  var user = document.getElementById('vip-grant-user').value.trim();
+  if (!user) return;
+  await fetch('/api/vip/' + encodeURIComponent(user) + '/revoke', {method:'POST'});
+  document.getElementById('vip-result').textContent = '✅ VIP снят с ' + user;
+  loadVipList();
+  notify('VIP снят: ' + user);
+}
+
+async function loadVipList() {
+  try {
+    var r = await fetch('/api/vip/list');
+    var vips = await r.json();
+    var el = document.getElementById('vip-list');
+    if (!el) return;
+    if (!vips.length) {
+      el.innerHTML = '<p style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Нет активных VIP зрителей</p>';
+      return;
+    }
+    el.innerHTML = vips.map(function(v) {
+      return '<div class="clip-item">' +
+        '<div style="display:flex;align-items:center;gap:10px;flex:1">' +
+        '<span style="font-size:18px">⭐</span>' +
+        '<div><div class="clip-label">' + escHtml(v.username) + '</div>' +
+        '<div class="clip-meta">' + v.points + ' баллов</div></div></div>' +
+        '<button class="btn btn-danger btn-sm" onclick="document.getElementById(\'vip-grant-user\').value=\'' + escHtml(v.username) + '\';revokeVip()">Снять VIP</button>' +
+        '</div>';
+    }).join('');
+  } catch(e) {}
+}
+
+async function saveVipSettings() {
+  var s = {
+    vip_points_bonus: document.getElementById('vip_points_bonus').value,
+    vip_cd_multiplier: document.getElementById('vip_cd_multiplier').value,
+  };
+  await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({settings: s})});
+  notify('💾 Настройки VIP сохранены');
+}
+
+// ─── OBS Overlays tab ─────────────────────────────────────────────────────────
+function renderOverlayList() {
+  var base = location.origin;
+  var overlays = [
+    {name:'🔔 Алерт-бокс',   url: base+'/overlay/alerts',  desc:'Анимация при фолло, сабе, рейде, bits'},
+    {name:'📰 Бегущая строка',url: base+'/overlay/ticker',  desc:'Последние события стрима'},
+    {name:'🏆 Топ баллов',    url: base+'/overlay/top',     desc:'Таблица лидеров по баллам'},
+    {name:'🎯 Цель стрима',   url: base+'/overlay/goal',    desc:'Прогресс-бар текущей цели'},
+  ];
+  var el = document.getElementById('overlay-list');
+  if (!el) return;
+
+  // Add scenes from editor if any
+  fetch('/api/overlays').then(function(r){return r.json();}).then(function(scenes){
+    var sceneItems = (scenes||[]).map(function(s){
+      return {name:'🎨 '+s.name, url: base+'/overlay/scene/'+s.id, desc:'Кастомная сцена из редактора'};
+    });
+    var all = overlays.concat(sceneItems);
+    el.innerHTML = all.map(function(o){
+      return '<div class="clip-item" style="flex-direction:column;align-items:stretch;gap:8px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
+        '<div><div class="clip-label">' + o.name + '</div><div class="clip-meta">' + o.desc + '</div></div>' +
+        '<div style="display:flex;gap:6px">' +
+        '<button class="btn btn-ghost btn-sm" onclick="copyUrl(\'' + o.url + '\')" data-tip="Скопировать URL для OBS">⎘ URL</button>' +
+        '<a href="' + o.url + '" target="_blank" class="btn btn-ghost btn-sm" data-tip="Открыть превью">👁 Превью</a>' +
+        '</div></div>' +
+        '<div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:10px;color:var(--cyan);font-family:monospace;word-break:break-all">' + o.url + '</div>' +
+        '</div>';
+    }).join('');
+  }).catch(function(){
+    el.innerHTML = overlays.map(function(o){
+      return '<div class="clip-item" style="flex-direction:column;align-items:stretch;gap:8px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
+        '<div><div class="clip-label">' + o.name + '</div><div class="clip-meta">' + o.desc + '</div></div>' +
+        '<button class="btn btn-ghost btn-sm" onclick="copyUrl(\'' + o.url + '\')">⎘ URL</button></div>' +
+        '<div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:10px;color:var(--cyan);font-family:monospace">' + o.url + '</div>' +
+        '</div>';
+    }).join('');
+  });
+}
+
+function copyUrl(url) {
+  navigator.clipboard.writeText(url).then(function(){
+    notify('✅ URL скопирован!');
+  }).catch(function(){
+    var inp = document.createElement('input');
+    inp.value = url; document.body.appendChild(inp);
+    inp.select(); document.execCommand('copy');
+    document.body.removeChild(inp);
+    notify('✅ URL скопирован!');
+  });
+}
+
+// ─── Extended showTab ─────────────────────────────────────────────────────────
+var _origShowTab = showTab;
+showTab = function(name, el) {
+  _origShowTab(name, el);
+  if (name === 'commands') loadCustomCommands();
+  if (name === 'songs') { loadSongs(); loadCurrentGame(); }
+  if (name === 'vip') { loadVipList(); loadVipSettings(); }
+  if (name === 'obs') renderOverlayList();
+};
+
+async function loadCurrentGame() {
+  var r = await fetch('/api/settings');
+  var s = await r.json();
+  var el = document.getElementById('current-game-input');
+  if (el && s.current_game) el.value = s.current_game;
+}
+
+async function loadVipSettings() {
+  var r = await fetch('/api/settings');
+  var s = await r.json();
+  var b = document.getElementById('vip_points_bonus');
+  var m = document.getElementById('vip_cd_multiplier');
+  if (b && s.vip_points_bonus) b.value = s.vip_points_bonus;
+  if (m && s.vip_cd_multiplier) m.value = s.vip_cd_multiplier;
+}
+
+// Handle song_requested WS event
+var _origHandleEvent = handleEvent;
+handleEvent = function(msg) {
+  _origHandleEvent(msg);
+  if (msg.event === 'song_requested') {
+    var songsTab = document.getElementById('tab-songs');
+    if (songsTab && songsTab.classList.contains('active')) loadSongs();
+    notify('🎵 Реквест: ' + msg.song + ' от ' + msg.username);
+  }
+  if (msg.event === 'vip_granted') {
+    notify('⭐ VIP выдан: ' + msg.username);
+    var vipTab = document.getElementById('tab-vip');
+    if (vipTab && vipTab.classList.contains('active')) loadVipList();
+  }
+};
+
+
+// ─── Trivia ───────────────────────────────────────────────────────────────────
+var triviaQuestions = [];
+
+async function loadTriviaSettings() {
+  var r = await fetch('/api/settings');
+  var s = await r.json();
+  var el = document.getElementById('trivia_reward');
+  if (el && s.trivia_reward) el.value = s.trivia_reward;
+  var tel = document.getElementById('trivia_timeout');
+  if (tel && s.trivia_timeout !== undefined) tel.value = s.trivia_timeout;
+  loadTriviaQuestions();
+}
+
+async function loadTriviaQuestions() {
+  try {
+    var r = await fetch('/api/trivia/questions');
+    triviaQuestions = await r.json();
+    renderTriviaQuestions();
+  } catch(e) { triviaQuestions = []; }
+}
+
+function renderTriviaQuestions() {
+  var el = document.getElementById('trivia-questions-list');
+  if (!el) return;
+  if (!triviaQuestions.length) {
+    el.innerHTML = '<p style="color:var(--text3);font-size:12px;text-align:center;padding:16px">Нет кастомных вопросов  -  используются встроенные</p>';
+    return;
+  }
+  el.innerHTML = triviaQuestions.map(function(q, i) {
+    return '<div style="display:grid;grid-template-columns:1fr 160px auto;gap:8px;align-items:center">' +
+      '<input class="form-input" value="' + escHtml(q.q||'') + '" placeholder="Вопрос" ' +
+      'oninput="triviaQuestions['+i+'].q=this.value" style="font-size:11px">' +
+      '<input class="form-input" value="' + escHtml(q.a||'') + '" placeholder="Ответ" ' +
+      'oninput="triviaQuestions['+i+'].a=this.value" style="font-size:11px">' +
+      '<button class="btn btn-danger btn-sm" onclick="removeTriviaQuestion('+i+')">✕</button>' +
+      '</div>';
+  }).join('');
+}
+
+function addTriviaQuestion() {
+  triviaQuestions.push({q:'', a:''});
+  renderTriviaQuestions();
+}
+
+function removeTriviaQuestion(i) {
+  triviaQuestions.splice(i, 1);
+  renderTriviaQuestions();
+}
+
+async function saveTriviaQuestions() {
+  var valid = triviaQuestions.filter(function(q){ return q.q && q.a; });
+  await fetch('/api/trivia/questions', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(valid)
+  });
+  notify('💾 Вопросы сохранены!');
+}
+
+async function saveTriviaSettings() {
+  var reward = document.getElementById('trivia_reward').value;
+  var timeout = document.getElementById('trivia_timeout') ? document.getElementById('trivia_timeout').value : '60';
+  await fetch('/api/settings', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({settings: {trivia_reward: reward, trivia_timeout: timeout}})
+  });
+  notify('💾 Настройки викторины сохранены!');
+}
+
+async function startTriviaNow() {
+  await fetch('/api/trivia/start', {method:'POST'});
+  notify('🧠 Викторина запущена!');
+  sysLog('🧠 Викторина запущена с панели');
+}
+
+// ─── Autopost flexible links ──────────────────────────────────────────────────
+var autopostLinks = [];
+
+async function loadAutopostLinks() {
+  try {
+    var r = await fetch('/api/autopost/links');
+    autopostLinks = await r.json();
+    // Fallback: if empty, try old format
+    if (!autopostLinks.length) {
+      var sr = await fetch('/api/settings');
+      var s = await sr.json();
+      var oldLinks = [
+        {name:'Telegram', url: s.tg_link||'', enabled: true},
+        {name:'TikTok', url: s.tiktok_link||'', enabled: true},
+        {name:'Discord', url: s.discord_link||'', enabled: true},
+        {name:'YouTube', url: s.youtube_link||'', enabled: true},
+      ];
+      autopostLinks = oldLinks.filter(function(l){ return l.url; });
+    }
+  } catch(e) { autopostLinks = []; }
+  renderAutopostLinks();
+}
+
+function renderAutopostLinks() {
+  var el = document.getElementById('autopost-links-list');
+  if (!el) return;
+  if (!autopostLinks.length) {
+    el.innerHTML = '<p style="color:var(--text3);font-size:12px;text-align:center;padding:12px">Нет ссылок. Нажми "+ Добавить"</p>';
+    return;
+  }
+  el.innerHTML = autopostLinks.map(function(link, i) {
+    return '<div style="display:grid;grid-template-columns:120px 1fr auto auto;gap:8px;align-items:center;' +
+           'background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px">' +
+      '<input class="form-input" value="' + escHtml(link.name||'') + '" placeholder="Название" ' +
+      'oninput="autopostLinks['+i+'].name=this.value" style="font-size:11px">' +
+      '<input class="form-input" value="' + escHtml(link.url||'') + '" placeholder="https://..." ' +
+      'oninput="autopostLinks['+i+'].url=this.value" style="font-size:11px">' +
+      '<label class="toggle" title="Включить/выключить эту ссылку"><input type="checkbox"' +
+      (link.enabled?' checked':'') + ' onchange="autopostLinks['+i+'].enabled=this.checked">' +
+      '<span class="toggle-slider"></span></label>' +
+      '<button class="btn btn-danger btn-sm" onclick="removeAutopostLink('+i+')">✕</button>' +
+      '</div>';
+  }).join('');
+}
+
+function addAutopostLink() {
+  autopostLinks.push({name:'', url:'', enabled: true});
+  renderAutopostLinks();
+}
+
+function removeAutopostLink(i) {
+  autopostLinks.splice(i, 1);
+  renderAutopostLinks();
+}
+
+async function saveAutopostLinks() {
+  var valid = autopostLinks.filter(function(l){ return l.name && l.url; });
+  await fetch('/api/autopost/links', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(valid)
+  });
+  autopostLinks = valid;
+  renderAutopostLinks();
+  notify('💾 Ссылки автопостинга сохранены!');
+}
+
+// ─── Manual warn ──────────────────────────────────────────────────────────────
+async function addManualWarn() {
+  var user = document.getElementById('warn-username').value.trim();
+  var reason = document.getElementById('warn-reason').value.trim() || 'Ручной варн';
+  if (!user) { notify('❌ Введи ник'); return; }
+  var r = await fetch('/api/warnings/' + encodeURIComponent(user) + '/add?reason=' + encodeURIComponent(reason), {method:'POST'});
+  var data = await r.json();
+  document.getElementById('warn-result').textContent = '⚠️ ' + user + ' получил варн (' + data.warn_count + '/3)';
+  sysLog('⚠️ Ручной варн: ' + user + ' (' + data.warn_count + '/3)');
+  notify('⚠️ Варн выдан: ' + user);
+}
+
+// ─── VIP cost display sync ────────────────────────────────────────────────────
+function syncVipCostDisplay(s) {
+  var el = document.getElementById('vip-cost-display');
+  if (el && s.vip_cost) el.textContent = s.vip_cost;
+}
+
+// ─── Extended showTab ─────────────────────────────────────────────────────────
+var _origShowTab2 = showTab;
+showTab = function(name, el) {
+  _origShowTab2(name, el);
+  if (name === 'trivia') loadTriviaSettings();
+  if (name === 'autopost') loadAutopostLinks();
+};
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+connectWS();
+loadStats();
+document.getElementById('chat-send-input').addEventListener('keydown',function(e){if(e.key==='Enter')broadcastMsg();});
+document.getElementById('chat-send-mobile').addEventListener('keydown',function(e){if(e.key==='Enter')broadcastMsgMobile();});
+
+</script>
+</body>
+</html>
